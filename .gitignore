@@ -1,0 +1,23 @@
+## --- Foldery budowania ---
+[Bb]in/
+[Oo]bj/
+
+## --- Visual Studio i ustawienia użytkownika ---
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## --- VS Code ---
+.vscode/
+
+## --- Pliki konfiguracyjne
+appsettings.Development.json
+appsettings.Local.json
+appsettings.Production.json
+.env
+
+
+.DS_Store
+Thumbs.db
