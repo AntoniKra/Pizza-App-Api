@@ -1,0 +1,1 @@
+//zarządzanie produktem, cenami, wariantami

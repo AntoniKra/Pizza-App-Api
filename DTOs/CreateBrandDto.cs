@@ -1,15 +1,18 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace PizzaApp.Entities
 {
-    public class Brand
+    public class CreateAddressDtoBrand
     {
-        [Key]
-        public Guid Id { get; set; } = Guid.NewGuid();
+        [Required]
         public required string Name { get; set; }
+
         public string? Logo { get; set; }
 
+        [Required]
         public Guid OwnerId { get; set; }
+
+        [Required]
         public Owner? Owner { get; set; }
         public ICollection<Pizzeria> Pizzerias { get; set; } = new List<Pizzeria>();
     }
