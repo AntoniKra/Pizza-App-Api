@@ -2,7 +2,7 @@
 {
     public enum PromotionTypeEnum
     {
-        Pizzeria, // Promocja na lokal (np. zniżka na całe zamówienie, darmowa dostawa)
-        Pizza     // Promocja na konkretny produkt (lub listę produktów)
+        Pizzeria = 1, // Promocja na lokal (np. zniżka na całe zamówienie, darmowa dostawa)
+        Pizza = 2     // Promocja na konkretny produkt (lub listę produktów)
     }
 }

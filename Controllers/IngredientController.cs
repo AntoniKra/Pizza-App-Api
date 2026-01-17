@@ -1,7 +1,3 @@
-//słownik skladników do wyboru przy tworzeniu pizzy
-//output - IngredientDto: Id, Name, IsAllergen, IsMeat
-//input - Name
-
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PizzaApp.Data;
