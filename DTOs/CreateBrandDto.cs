@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace PizzaApp.Entities
+namespace PizzaApp.DTOs
 {
-    public class CreateAddressDtoBrand
+    public class CreateBrandDto
     {
         [Required]
         public required string Name { get; set; }
@@ -11,9 +11,5 @@ namespace PizzaApp.Entities
 
         [Required]
         public Guid OwnerId { get; set; }
-
-        [Required]
-        public Owner? Owner { get; set; }
-        public ICollection<Pizzeria> Pizzerias { get; set; } = new List<Pizzeria>();
     }
 }

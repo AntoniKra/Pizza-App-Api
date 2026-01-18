@@ -4,6 +4,7 @@ using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Entities;
 using PizzaApp.Enums;
+using PizzaApp.Extensions;
 
 namespace PizzaApp.Controllers
 {
@@ -25,7 +26,7 @@ namespace PizzaApp.Controllers
             var menuExists = await _context.Menus.AnyAsync(m => m.Id == dto.MenuId);
             if (!menuExists)
             {
-                return BadRequest($"Menu o ID {dto.MenuId} nie istnieje.");
+                return BadRequest("Wybrane menu nie istnieje lub jest nieprawidłowe.");
             }
 
             if (await _context.Pizzas.AnyAsync(p => p.MenuId == dto.MenuId && p.Name == dto.Name))
@@ -61,7 +62,7 @@ namespace PizzaApp.Controllers
             {
                 MenuId = dto.MenuId,
                 Name = dto.Name,
-                Description = dto.Description ?? "",
+                Description = dto.Description,
                 Price = dto.Price,
                 ImageUrl = dto.ImageUrl,
                 WeightGrams = dto.WeightGrams,
@@ -95,7 +96,7 @@ namespace PizzaApp.Controllers
                 {
                     Id = p.Id,
                     Name = p.Name,
-                    Description = p.Description ?? string.Empty,
+                    Description = p.Description,
                     Price = p.Price,
                     ImageUrl = p.ImageUrl,
                     IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
@@ -115,7 +116,7 @@ namespace PizzaApp.Controllers
 
             if (pizza == null)
             {
-                return NotFound($"Pizza o ID {id} nie istnieje.");
+                return NotFound($"Wybrana nie istnieje.");
             }
 
             var detailsDto = new PizzaDetailsDto
@@ -123,7 +124,7 @@ namespace PizzaApp.Controllers
                 Id = pizza.Id,
                 Name = pizza.Name,
 
-                Description = pizza.Description ?? string.Empty,
+                Description = pizza.Description,
 
                 ImageUrl = pizza.ImageUrl,
 
@@ -131,11 +132,11 @@ namespace PizzaApp.Controllers
                 WeightGrams = pizza.WeightGrams,
                 Kcal = pizza.Kcal,
 
-                Style = pizza.Style.ToString(),
-                Dough = pizza.Dough.ToString(),
-                BaseSauce = pizza.BaseSauce.ToString(),
-                Thickness = pizza.Thickness.ToString(),
-                Shape = pizza.Shape.ToString(),
+                Style = pizza.Style.ToLookUpItemDto(),
+                Dough = pizza.Dough.ToLookUpItemDto(),
+                BaseSauce = pizza.BaseSauce.ToLookUpItemDto(),
+                Thickness = pizza.Thickness.ToLookUpItemDto(),
+                Shape = pizza.Shape.ToLookUpItemDto(),
 
                 DiameterCm = pizza.DiameterCm,
                 WidthCm = pizza.WidthCm,

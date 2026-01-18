@@ -10,12 +10,11 @@ namespace PizzaApp.DTOs
         public decimal Price { get; set; }
         public string? ImageUrl { get; set; }
 
-        public required string Style { get; set; }
-        public required string Dough { get; set; }
-        public required string BaseSauce { get; set; }
-        public required string Thickness { get; set; }
-        public required string Shape { get; set; }
-
+        public required LookUpItemDto Style { get; set; }
+        public required LookUpItemDto Dough { get; set; }
+        public required LookUpItemDto BaseSauce { get; set; }
+        public required LookUpItemDto Thickness { get; set; }
+        public required LookUpItemDto Shape { get; set; }
         public double WeightGrams { get; set; }
         public double Kcal { get; set; }
         public double? DiameterCm { get; set; }

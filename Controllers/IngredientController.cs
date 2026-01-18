@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Entities;
+using PizzaApp.Enums;
+using PizzaApp.Extensions;
 
 namespace PizzaApp.Controllers
 {
