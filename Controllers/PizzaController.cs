@@ -1,4 +1,3 @@
-// Musimy dodać metodę GetPizzas, ale uwaga – musimy użyć magicznego słowa .Include(), żeby EF Core pobrał też składniki (inaczej lista Ingredients będzie pusta/null).
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PizzaApp.Data;
