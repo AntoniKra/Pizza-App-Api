@@ -10,7 +10,5 @@ namespace PizzaApp.DTOs
         public bool IsAllergen { get; set; }
         public bool IsMeat { get; set; }
 
-
-
     }
 }

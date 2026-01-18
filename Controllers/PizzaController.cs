@@ -122,6 +122,7 @@ namespace PizzaApp.Controllers
             var detailsDto = new PizzaDetailsDto
             {
                 Id = pizza.Id,
+                MenuId = pizza.MenuId,
                 Name = pizza.Name,
 
                 Description = pizza.Description,
@@ -152,6 +153,102 @@ namespace PizzaApp.Controllers
             };
 
             return Ok(detailsDto);
+        }
+
+        // PUT: api/Pizza/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdatePizza(Guid id, [FromBody] UpdatePizzaDto dto)
+        {
+            // POBIERANIE Z BAZY (EAGER LOADING)
+            var pizza = await _context.Pizzas
+                .Include(p => p.Ingredients)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (pizza == null)
+            {
+                return NotFound("Wybrana pizza nie istnieje.");
+            }
+
+            if (!await _context.Menus.AnyAsync(m => m.Id == dto.MenuId))
+            {
+                return BadRequest("Wybrane menu nie istnieje.");
+            }
+
+            var nameTaken = await _context.Pizzas
+                .AnyAsync(p => p.MenuId == dto.MenuId && p.Name == dto.Name && p.Id != id);
+
+            if (nameTaken)
+            {
+                return Conflict("Inna pizza w tym menu ma już taką nazwę.");
+            }
+
+            if (dto.Shape == PizzaShapeEnum.Round && (dto.DiameterCm == null || dto.DiameterCm <= 0))
+                return BadRequest("Dla pizzy okrągłej wymagana jest średnica.");
+
+            if (dto.Shape == PizzaShapeEnum.Rectangle && (dto.WidthCm == null || dto.LengthCm == null))
+                return BadRequest("Dla pizzy prostokątnej wymagane są wymiary boków.");
+
+            // Pobieramy z bazy te składniki, których ID przesłał user
+            var newIngredients = await _context.Ingredients
+                .Where(i => dto.IngredientIds.Contains(i.Id))
+                .ToListAsync();
+
+            // Zabezpieczenie, gdy choć jeden z kilku ID nie istnieje
+            if (newIngredients.Count != dto.IngredientIds.Count)
+            {
+                return BadRequest("Jeden lub więcej podanych składników nie istnieje.");
+            }
+
+            pizza.MenuId = dto.MenuId;
+            pizza.Name = dto.Name;
+            pizza.Description = dto.Description;
+            pizza.ImageUrl = dto.ImageUrl;
+            pizza.Price = dto.Price;
+            pizza.WeightGrams = dto.WeightGrams;
+            pizza.Kcal = dto.Kcal;
+
+            pizza.Style = dto.Style;
+            pizza.Dough = dto.Dough;
+            pizza.BaseSauce = dto.BaseSauce;
+            pizza.Thickness = dto.Thickness;
+            pizza.Shape = dto.Shape;
+
+            if (dto.Shape == PizzaShapeEnum.Round)
+            {
+                pizza.DiameterCm = dto.DiameterCm!.Value;
+                pizza.WidthCm = 0;
+                pizza.LengthCm = 0;
+            }
+            else
+            {
+                pizza.DiameterCm = 0;
+                pizza.WidthCm = dto.WidthCm!.Value;
+                pizza.LengthCm = dto.LengthCm!.Value;
+            }
+
+            // UPDATE RELACJI MANY-TO-MANY
+            pizza.Ingredients = newIngredients;
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // DELETE: api/Pizza/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeletePizza(Guid id)
+        {
+            var pizza = await _context.Pizzas.FindAsync(id);
+
+            if (pizza == null)
+            {
+                return NotFound("Wybrana pizza nie istnieje.");
+            }
+
+            _context.Pizzas.Remove(pizza);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
     }
 }
