@@ -14,7 +14,6 @@ namespace PizzaApp.DTOs
 
         [Required]
         public required string ZipCode { get; set; }
-
         [Required]
         public Guid CityId { get; set; }
 

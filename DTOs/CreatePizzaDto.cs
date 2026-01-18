@@ -1,32 +1,48 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using PizzaApp.Enums;
 
-namespace PizzaApp.Entities
+namespace PizzaApp.DTOs
 {
-    public class Pizza
+    public class CreatePizzaDto
     {
-        [Key]
-        public Guid Id { get; set; } = Guid.NewGuid();
 
+        public List<Guid> IngredientIds { get; set; } = new();
+
+        [Required(ErrorMessage = "Nazwa jest wymagana")]
+        [MaxLength(100)]
         public required string Name { get; set; }
+
         public string? Description { get; set; }
+
+        [Range(0.01, 10000)]
         public decimal Price { get; set; }
         public string? ImageUrl { get; set; }
 
+
+        [Required]
         public PizzaStyleEnum Style { get; set; }
+
+        [Required]
         public SauceTypeEnum BaseSauce { get; set; }
+
+        [Required]
         public DoughTypeEnum Dough { get; set; }
+
+        [Required]
         public CrustThicknessEnum Thickness { get; set; }
+
+        [Required]
         public PizzaShapeEnum Shape { get; set; }
 
-        public double DiameterCm { get; set; }
-        public double WidthCm { get; set; }
-        public double LengthCm { get; set; }
+        public double? DiameterCm { get; set; }
+        public double? WidthCm { get; set; }
+        public double? LengthCm { get; set; }
+
+        [Range(1, 10000)]
         public double WeightGrams { get; set; }
         public double Kcal { get; set; }
 
+        [Required]
         public Guid MenuId { get; set; }
-        public ICollection<Ingredient> Ingredients { get; set; } = new List<Ingredient>();
-        public ICollection<Promotion> Promotions { get; set; } = new List<Promotion>();
     }
 }

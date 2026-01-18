@@ -10,7 +10,7 @@ namespace PizzaApp.Entities
         public string? Logo { get; set; }
 
         public Guid OwnerId { get; set; }
-        public Owner? Owner { get; set; } 
+        public Owner? Owner { get; set; }
         public ICollection<Pizzeria> Pizzerias { get; set; } = new List<Pizzeria>();
     }
 }

@@ -1,0 +1,1 @@
+//zarzadzanie fizycznym lokalem pizzerii, godzinami otwarcia, dostawami
