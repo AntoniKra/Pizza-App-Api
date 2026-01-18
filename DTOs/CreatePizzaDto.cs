@@ -16,6 +16,7 @@ namespace PizzaApp.DTOs
 
         [Range(0.01, 10000)]
         public decimal Price { get; set; }
+        public string? ImageUrl { get; set; }
 
 
         [Required]

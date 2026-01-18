@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using PizzaApp.Enums; 
+using PizzaApp.Enums;
 
 namespace PizzaApp.Entities
 {
@@ -11,6 +11,7 @@ namespace PizzaApp.Entities
         public required string Name { get; set; }
         public string? Description { get; set; }
         public decimal Price { get; set; }
+        public string? ImageUrl { get; set; }
 
         public PizzaStyleEnum Style { get; set; }
         public SauceTypeEnum BaseSauce { get; set; }
@@ -19,8 +20,8 @@ namespace PizzaApp.Entities
         public PizzaShapeEnum Shape { get; set; }
 
         public double DiameterCm { get; set; }
-        public double WidthCm { get; set; }    
-        public double LengthCm { get; set; }  
+        public double WidthCm { get; set; }
+        public double LengthCm { get; set; }
         public double WeightGrams { get; set; }
         public double Kcal { get; set; }
 

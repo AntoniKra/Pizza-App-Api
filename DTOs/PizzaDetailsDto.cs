@@ -8,8 +8,7 @@ namespace PizzaApp.DTOs
         public required string Name { get; set; }
         public string? Description { get; set; }
         public decimal Price { get; set; }
-        public double WeightGrams { get; set; }
-        public double Kcal { get; set; }
+        public string? ImageUrl { get; set; }
 
         public required string Style { get; set; }
         public required string Dough { get; set; }
@@ -17,6 +16,8 @@ namespace PizzaApp.DTOs
         public required string Thickness { get; set; }
         public required string Shape { get; set; }
 
+        public double WeightGrams { get; set; }
+        public double Kcal { get; set; }
         public double? DiameterCm { get; set; }
         public double? WidthCm { get; set; }
         public double? LengthCm { get; set; }

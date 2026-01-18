@@ -64,6 +64,7 @@ namespace PizzaApp.Controllers
                 Name = dto.Name,
                 Description = dto.Description ?? "",
                 Price = dto.Price,
+                ImageUrl = dto.ImageUrl,
                 WeightGrams = dto.WeightGrams,
                 Kcal = dto.Kcal,
 
@@ -97,6 +98,7 @@ namespace PizzaApp.Controllers
                     Name = p.Name,
                     Description = p.Description ?? string.Empty,
                     Price = p.Price,
+                    ImageUrl = p.ImageUrl,
                     IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
                 })
                 .ToListAsync();
@@ -123,6 +125,8 @@ namespace PizzaApp.Controllers
                 Name = pizza.Name,
 
                 Description = pizza.Description ?? string.Empty,
+
+                ImageUrl = pizza.ImageUrl,
 
                 Price = pizza.Price,
                 WeightGrams = pizza.WeightGrams,
