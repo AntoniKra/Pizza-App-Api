@@ -1,6 +1,6 @@
 ﻿namespace PizzaApp.DTOs
 {
-    public class UpdateAddressDto:CreateAddressDto
+    public class UpdateAddressDto : CreateAddressDto
     {
     }
 }

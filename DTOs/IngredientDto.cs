@@ -9,8 +9,5 @@ namespace PizzaApp.DTOs
         public required string Name { get; set; }
         public bool IsAllergen { get; set; }
         public bool IsMeat { get; set; }
-
-
-
     }
 }
