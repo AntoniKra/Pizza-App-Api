@@ -21,31 +21,27 @@ namespace PizzaApp.Controllers
             [FromQuery] string? city,
             [FromQuery] string? searchPhrase)
         {
-            // Start zapytania z Eager Loading
-            var query = _context.Pizzerias
-                .Include(p => p.Brand)
-                .Include(p => p.Address)
-                    .ThenInclude(a => a.City)
-                .AsQueryable();
+            var query = _context.Pizzerias.AsQueryable();
 
-            // Filtrowanie po Mieście (jeśli podano)
             if (!string.IsNullOrWhiteSpace(city))
             {
+                var cityLower = city.ToLower();
                 query = query.Where(p =>
                     p.Address != null &&
                     p.Address.City != null &&
-                    p.Address.City.Name.Contains(city));
+                    p.Address.City.Name.ToLower().Contains(cityLower));
             }
 
-            // Filtrowanie po Nazwie (Pizzerii lub Marki)
             if (!string.IsNullOrWhiteSpace(searchPhrase))
             {
+                var phraseLower = searchPhrase.ToLower();
                 query = query.Where(p =>
-                    p.Name.Contains(searchPhrase) ||
-                    (p.Brand != null && p.Brand.Name.Contains(searchPhrase)));
+                    p.Name.ToLower().Contains(phraseLower) ||
+                    (p.Brand != null && p.Brand.Name.ToLower().Contains(phraseLower)));
             }
 
-            // Logika "Best Match" dla pustych filtrów
+            query = query.OrderBy(p => p.Name);
+
             if (string.IsNullOrWhiteSpace(city) && string.IsNullOrWhiteSpace(searchPhrase))
             {
                 query = query.Take(20);
