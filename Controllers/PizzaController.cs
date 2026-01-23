@@ -87,21 +87,64 @@ namespace PizzaApp.Controllers
             return Created($"api/pizza/{pizza.Id}", new { id = pizza.Id, name = pizza.Name });
         }
 
-        // Zwraca tylko to, co potrzebne do wyświetlenia menu
-        [HttpGet]
+        [HttpGet("GetAll")]
         public async Task<ActionResult<IEnumerable<PizzaSearchResultDto>>> GetPizzas()
         {
-            var pizzas = await _context.Pizzas
-                .Select(p => new PizzaSearchResultDto
+            var pizzaData = await _context.Pizzas
+                .Include(p => p.Ingredients)
+                .Include(p => p.Menu)
+                    .ThenInclude(m => m.Pizzeria)
+                        .ThenInclude(pz => pz.Brand)
+                .Select(p => new
                 {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Description = p.Description,
-                    Price = p.Price,
-                    ImageUrl = p.ImageUrl,
+                    p.Id,
+                    p.Name,
+                    BrandName = p.Menu.Pizzeria.Brand!.Name,
+                    p.Description,
+                    p.Price,
+                    p.ImageUrl,
+                    p.WeightGrams,
+                    p.Kcal,
+                    p.DiameterCm,
+                    p.WidthCm,
+                    p.LengthCm,
+                    p.Shape,
+                    p.Style,
                     IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
                 })
                 .ToListAsync();
+
+            var pizzas = pizzaData.Select(p =>
+            {
+                double area;
+                if (p.Shape == PizzaShapeEnum.Round)
+                {
+                    var radius = p.DiameterCm / 2.0;
+                    area = Math.PI * radius * radius;
+                }
+                else
+                {
+                    area = p.WidthCm * p.LengthCm;
+                }
+
+                var pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
+
+                return new PizzaSearchResultDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    BrandName = p.BrandName,
+                    Description = p.Description,
+                    Price = p.Price,
+                    ImageUrl = p.ImageUrl,
+                    WeightGrams = p.WeightGrams,
+                    Kcal = p.Kcal,
+                    DiameterCm = p.Shape == PizzaShapeEnum.Round ? p.DiameterCm : null,
+                    StyleName = p.Style.GetDescription(),
+                    PricePerSqCm = Math.Round(pricePerSqCm, 4),
+                    IngredientNames = p.IngredientNames
+                };
+            }).ToList();
 
             return Ok(pizzas);
         }
@@ -249,6 +292,147 @@ namespace PizzaApp.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        // GET: api/Pizza/search
+        [HttpGet("search")]
+        public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromQuery] PizzaSearchCriteriaDto criteria)
+        {
+            var query = _context.Pizzas
+                .Include(p => p.Ingredients)
+                .Include(p => p.Menu)
+                    .ThenInclude(m => m.Pizzeria)
+                        .ThenInclude(pz => pz.Address)
+                            .ThenInclude(a => a.City)
+                .Include(p => p.Menu)
+                    .ThenInclude(m => m.Pizzeria)
+                        .ThenInclude(pz => pz.Brand)
+                .AsQueryable();
+
+            // City Filter (Required)
+            query = query.Where(p => p.Menu.Pizzeria.Address!.City!.Id.ToString() == criteria.CityId);
+
+            // Only Active Menus
+            query = query.Where(p => p.Menu.IsActive);
+
+            // Brand Filter
+            if (criteria.BrandIds != null && criteria.BrandIds.Any())
+            {
+                query = query.Where(p => criteria.BrandIds.Contains(p.Menu.Pizzeria.BrandId));
+            }
+
+            // Style Filter
+            if (criteria.Styles != null && criteria.Styles.Any())
+            {
+                query = query.Where(p => criteria.Styles.Contains(p.Style));
+            }
+
+            // Dough Filter
+            if (criteria.Doughs != null && criteria.Doughs.Any())
+            {
+                query = query.Where(p => criteria.Doughs.Contains(p.Dough));
+            }
+
+            // Thickness Filter
+            if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
+            {
+                query = query.Where(p => criteria.Thicknesses.Contains(p.Thickness));
+            }
+
+            // Shape Filter
+            if (criteria.Shapes != null && criteria.Shapes.Any())
+            {
+                query = query.Where(p => criteria.Shapes.Contains(p.Shape));
+            }
+
+            // Sauce Filter
+            if (criteria.Sauces != null && criteria.Sauces.Any())
+            {
+                query = query.Where(p => criteria.Sauces.Contains(p.BaseSauce));
+            }
+
+            // Price Range Filter
+            if (criteria.MinPrice.HasValue)
+            {
+                query = query.Where(p => p.Price >= criteria.MinPrice.Value);
+            }
+
+            if (criteria.MaxPrice.HasValue)
+            {
+                query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
+            }
+
+            // Sorting
+            query = criteria.SortBy switch
+            {
+                SortOptionEnum.PriceAsc => query.OrderBy(p => p.Price),
+                SortOptionEnum.PriceDesc => query.OrderByDescending(p => p.Price),
+                SortOptionEnum.NameAsc => query.OrderBy(p => p.Name),
+                SortOptionEnum.NameDesc => query.OrderByDescending(p => p.Name),
+                _ => query.OrderBy(p => p.Name) // Default
+            };
+
+            // Pagination - Fetch data with anonymous type first
+            var totalCount = await query.CountAsync();
+            var pizzaData = await query
+                .Skip((criteria.PageNumber - 1) * criteria.PageSize)
+                .Take(criteria.PageSize)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    BrandName = p.Menu.Pizzeria.Brand!.Name,
+                    p.Description,
+                    p.Price,
+                    p.ImageUrl,
+                    p.WeightGrams,
+                    p.Kcal,
+                    p.DiameterCm,
+                    p.WidthCm,
+                    p.LengthCm,
+                    p.Shape,
+                    p.Style,
+                    IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
+                })
+                .ToListAsync();
+
+            // Calculate PricePerSqCm in memory
+            var pizzas = pizzaData.Select(p =>
+            {
+                double area;
+                if (p.Shape == PizzaShapeEnum.Round)
+                {
+                    // Area = π * (diameter/2)²
+                    var radius = p.DiameterCm / 2.0;
+                    area = Math.PI * radius * radius;
+                }
+                else // Rectangle
+                {
+                    // Area = width * length
+                    area = p.WidthCm * p.LengthCm;
+                }
+
+                // Prevent division by zero
+                var pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
+
+                return new PizzaSearchResultDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    BrandName = p.BrandName,
+                    Description = p.Description,
+                    Price = p.Price,
+                    ImageUrl = p.ImageUrl,
+                    WeightGrams = p.WeightGrams,
+                    Kcal = p.Kcal,
+                    DiameterCm = p.Shape == PizzaShapeEnum.Round ? p.DiameterCm : null,
+                    StyleName = p.Style.GetDescription(),
+                    PricePerSqCm = Math.Round(pricePerSqCm, 4),
+                    IngredientNames = p.IngredientNames
+                };
+            }).ToList();
+
+            return Ok(pizzas);
         }
     }
 }

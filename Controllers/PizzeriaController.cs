@@ -1,29 +1,37 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Entities;
+using PizzaApp.Services;
 
 namespace PizzaApp.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PizzeriaController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly UserContextService _userContextService;
 
-        public PizzeriaController(AppDbContext context)
+        public PizzeriaController(AppDbContext context,UserContextService userContextService)
         {
             _context = context;
+            _userContextService = userContextService;
         }
 
         // POST: api/Pizzeria
         [HttpPost]
         public async Task<ActionResult> CreatePizzeria([FromBody] CreatePizzeriaDto dto)
         {
-            var brand = await _context.Brands.FindAsync(dto.BrandId);
+            var brand = await _context.Brands.FindAsync(dto.Brand.Id);
             if (brand == null)
                 return BadRequest("Podana marka nie istnieje.");
+            var userId =  _userContextService.GetUserId();
+
+            if (brand.Owner.Id != userId) return Forbid();
 
             var city = await _context.Cities.FirstOrDefaultAsync(c => c.Name == dto.Address.CityName);
             if (city == null)
@@ -52,7 +60,7 @@ namespace PizzaApp.Controllers
 
             var pizzeria = new Pizzeria
             {
-                BrandId = dto.BrandId,
+                BrandId = brand.Id,
                 Name = dto.Name,
                 PhoneNumber = dto.PhoneNumber,
                 DeliveryCost = dto.DeliveryCost,

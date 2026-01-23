@@ -11,6 +11,7 @@ namespace PizzaApp.Entities
         public bool IsActive { get; set; }
 
         public Guid PizzeriaId { get; set; }
+        public Pizzeria Pizzeria { get; set; } = null!;
         public ICollection<Pizza> Pizzas { get; set; } = new List<Pizza>();
     }
 }

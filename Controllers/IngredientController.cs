@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PizzaApp.Data;
@@ -20,25 +21,22 @@ namespace PizzaApp.Controllers
             _context = context;
         }
 
-        // GET: api/ingredients
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<IngredientDto>>> GetIngredients()
+        // GET: api/ingredients/${id}
+        [HttpGet("{id}")]
+        public async Task<ActionResult<IEnumerable<IngredientDto>>> GetIngredient(Guid id)
         {
-            var ingredients = await _context.Ingredients
-                .Select(i => new IngredientDto
-                {
-                    Id = i.Id,
-                    Name = i.Name,
-                    IsAllergen = i.IsAllergen,
-                    IsMeat = i.IsMeat,
-                })
-                .ToListAsync();
+            var ingredients = await _context.Ingredients.SingleOrDefaultAsync(x => x.Id == id);
+            if (ingredients == null)
+            {
+                return NotFound();
+            }
 
             return Ok(ingredients);
         }
 
         // POST: api/ingredients
         [HttpPost]
+        [Authorize]
         public async Task<ActionResult<IngredientDto>> CreateIngredient(CreateIngredientDto dto)
         {
 
@@ -76,8 +74,27 @@ namespace PizzaApp.Controllers
                 IsMeat = ingredient.IsMeat,
             };
 
-            return CreatedAtAction(nameof(GetIngredients), new { id = resultDto.Id }, resultDto);
+            return CreatedAtAction(nameof(CreateIngredient), new { id = resultDto.Id }, resultDto);
         }
+
+        // GET: api/ingredients/GetAll
+        [HttpGet("GetAll")]
+        public async Task<ActionResult<IEnumerable<IngredientDto>>> GetIngredients()
+        {
+            var ingredients = await _context.Ingredients
+                .Select(i => new IngredientDto
+                {
+                    Id = i.Id,
+                    Name = i.Name,
+                    IsAllergen = i.IsAllergen,
+                    IsMeat = i.IsMeat,
+                })
+                .ToListAsync();
+
+            return Ok(ingredients);
+        }
+
+      
 
 
     }

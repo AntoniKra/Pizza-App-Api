@@ -12,8 +12,8 @@ namespace PizzaApp.Entities
         public required string LastName { get; set; }
         public required string Email { get; set; }
 
-        [JsonIgnore] 
-        public required string PasswordHash { get; set; }
+        [JsonIgnore]
+        public string PasswordHash { get; set; } = null!;
     }
 
 }

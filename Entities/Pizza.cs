@@ -26,6 +26,7 @@ namespace PizzaApp.Entities
         public double Kcal { get; set; }
 
         public Guid MenuId { get; set; }
+        public Menu? Menu { get; set; }
         public ICollection<Ingredient> Ingredients { get; set; } = new List<Ingredient>();
         public ICollection<Promotion> Promotions { get; set; } = new List<Promotion>();
     }
