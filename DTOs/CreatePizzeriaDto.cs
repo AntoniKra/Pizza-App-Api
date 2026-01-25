@@ -5,7 +5,7 @@ namespace PizzaApp.DTOs
     public class CreatePizzeriaDto
     {
         [Required]
-        public Guid BrandId { get; set; }
+        public required LookUpItemDto Brand { get; set; }
 
         [Required(ErrorMessage = "Nazwa pizzerii jest wymagana")]
         [MaxLength(100)]

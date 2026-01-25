@@ -24,7 +24,7 @@ namespace PizzaApp.Controllers
         }
 
         // POST: api/auth/register
-        [HttpPost("register")]
+        [HttpPost("Register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
             if (await _context.Accounts.AnyAsync(u => u.Email == dto.Email))
@@ -68,7 +68,7 @@ namespace PizzaApp.Controllers
         }
 
         // POST: api/auth/login
-        [HttpPost("login")]
+        [HttpPost("Login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
             var user = await _context.Accounts.FirstOrDefaultAsync(u => u.Email == dto.Email);

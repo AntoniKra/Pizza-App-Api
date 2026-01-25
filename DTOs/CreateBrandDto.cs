@@ -9,7 +9,5 @@ namespace PizzaApp.DTOs
 
         public string? Logo { get; set; }
 
-        [Required]
-        public Guid OwnerId { get; set; }
     }
 }

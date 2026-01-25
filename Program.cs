@@ -1,10 +1,12 @@
+using DotNetEnv;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using PizzaApp.Data;
+using PizzaApp.Interfaces;
+using PizzaApp.Services;
 using Scalar.AspNetCore;
 using System.Text;
-using DotNetEnv;
 
 Env.Load();
 
@@ -43,6 +45,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IUserContextService,UserContextService>();
 
 
 

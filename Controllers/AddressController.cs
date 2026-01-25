@@ -19,18 +19,8 @@ namespace PizzaApp.Controllers
             _context = context;
         }
 
-        // GET: api/Address/GetAll
-        [HttpGet("GetAll")]
-        public async Task<ActionResult<IEnumerable<Address>>> GetAddresses()
-        {
-            return await _context.Addresses
-                .Include(a => a.City) 
-                .ThenInclude(c => c.Country) 
-                .ToListAsync();
-        }
-
         // GET: api/Address/GetAdress/5
-        [HttpGet("GetAdress/{id}")]
+        [HttpGet("{id}")]
         public async Task<ActionResult<Address>> GetAddress(Guid id)
         {
             var address = await _context.Addresses
@@ -46,7 +36,7 @@ namespace PizzaApp.Controllers
         }
 
         // POST: api/Address/Create
-        [HttpPost("Create")]
+        [HttpPost]
         public async Task<ActionResult<Address>> CreateAddress(CreateAddressDto dto)
         {
             // Opcjonalnie: Sprawdź czy miasto istnieje
@@ -73,8 +63,8 @@ namespace PizzaApp.Controllers
             return CreatedAtAction(nameof(GetAddress), new { id = address.Id }, address);
         }
 
-        // PUT: api/Address/Update/5
-        [HttpPut("Update/{id}")]
+        // PUT: api/Address/5
+        [HttpPut("{id}")]
         public async Task<IActionResult> UpdateAddress(Guid id, UpdateAddressDto dto)
         {
             var address = await _context.Addresses.FindAsync(id);
@@ -101,11 +91,11 @@ namespace PizzaApp.Controllers
                 else throw;
             }
 
-            return NoContent(); 
+            return NoContent();
         }
 
-        // DELETE: api/Address/Delete/5
-        [HttpDelete("Delete/{id}")]
+        // DELETE: api/Address/5
+        [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteAddress(Guid id)
         {
             var address = await _context.Addresses.FindAsync(id);
@@ -118,6 +108,17 @@ namespace PizzaApp.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        
+        // GET: api/Address/GetAll
+        [HttpGet("GetAll")]
+        public async Task<ActionResult<IEnumerable<Address>>> GetAddresses()
+        {
+            return await _context.Addresses
+                .Include(a => a.City) 
+                .ThenInclude(c => c.Country) 
+                .ToListAsync();
         }
 
         private bool AddressExists(Guid id)
