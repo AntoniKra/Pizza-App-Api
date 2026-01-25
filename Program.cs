@@ -12,6 +12,9 @@ Env.Load();
 var builder = WebApplication.CreateBuilder(args);
 
 
+builder.Services.AddCors();
+
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -39,10 +42,17 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddHttpContextAccessor();
 
 
 
 var app = builder.Build();
+
+app.UseCors(x => x
+    .AllowAnyMethod()
+    .AllowAnyHeader()
+    .SetIsOriginAllowed(origin => true) 
+    .AllowCredentials());
 
 using (var scope = app.Services.CreateScope())
 {
