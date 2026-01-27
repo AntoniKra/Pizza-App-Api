@@ -290,6 +290,7 @@ namespace PizzaApp.Controllers
         }
 
         [HttpGet("search")]
+        [Produces("application/json")]
         public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromQuery] PizzaSearchCriteriaDto criteria)
         {
             var query = _context.Pizzas

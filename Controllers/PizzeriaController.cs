@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Entities;
+using PizzaApp.Interfaces;
 using PizzaApp.Services;
 
 namespace PizzaApp.Controllers
@@ -14,21 +15,29 @@ namespace PizzaApp.Controllers
     public class PizzeriaController : ControllerBase
     {
         private readonly AppDbContext _context;
-        private readonly UserContextService _userContextService;
+        private readonly IUserContextService _userContextService;
 
-        public PizzeriaController(AppDbContext context, UserContextService userContextService)
+        public PizzeriaController(AppDbContext context, IUserContextService userContextService)
         {
             _context = context;
             _userContextService = userContextService;
         }
-
         // POST: api/Pizzeria
         [HttpPost]
         public async Task<ActionResult> CreatePizzeria([FromBody] CreatePizzeriaDto dto)
         {
-            var brand = await _context.Brands.FindAsync(dto.Brand.Id);
+            if (!Guid.TryParse(dto.Brand.Id, out var brandId))
+            {
+                return BadRequest("Nieprawidłowy format ID marki.");
+            }
+
+            var brand = await _context.Brands
+                .Include(b => b.Owner)
+                .FirstOrDefaultAsync(b => b.Id == brandId);
+
             if (brand == null)
                 return BadRequest("Podana marka nie istnieje.");
+
             var userId = _userContextService.GetUserId();
 
             if (brand.Owner.Id != userId) return Forbid();
@@ -68,9 +77,7 @@ namespace PizzaApp.Controllers
                 ServiceFee = dto.ServiceFee,
                 AveragePreparationTimeMinutes = dto.AveragePreparationTimeMinutes,
                 MaxDeliveryRange = dto.MaxDeliveryRange,
-
                 Address = address,
-
                 Menus = new List<Menu> { menu }
             };
 
