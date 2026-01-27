@@ -6,6 +6,7 @@ using PizzaApp.Entities;
 using PizzaApp.Enums;
 using PizzaApp.Extensions;
 using PizzaApp.Services;
+using System.IO;
 
 namespace PizzaApp.Controllers
 {
@@ -16,6 +17,9 @@ namespace PizzaApp.Controllers
         private readonly AppDbContext _context;
         private readonly IFileService _fileService;
 
+        // SECURITY: Limit wielkości pliku (5MB)
+        private const long MaxFileSize = 5 * 1024 * 1024;
+
         public PizzaController(AppDbContext context, IFileService fileService)
         {
             _context = context;
@@ -25,7 +29,6 @@ namespace PizzaApp.Controllers
         [HttpPost]
         public async Task<ActionResult> CreatePizza([FromForm] CreatePizzaDto dto)
         {
-            // Validation
             var menuExists = await _context.Menus.AnyAsync(m => m.Id == dto.MenuId);
             if (!menuExists)
             {
@@ -60,10 +63,17 @@ namespace PizzaApp.Controllers
                 return BadRequest("Podano nieistniejące składniki.");
             }
 
+            // WALIDACJA I UPLOAD PLIKU
             string? uploadedImageUrl = null;
             if (dto.ImageFile != null && dto.ImageFile.Length > 0)
             {
-                // Wysłanie do Google Cloud i zwrócenie linku
+                var (isValid, errorMessage) = ValidateImageFile(dto.ImageFile);
+
+                if (!isValid)
+                {
+                    return BadRequest($"Błąd pliku: {errorMessage}");
+                }
+
                 uploadedImageUrl = await _fileService.UploadFileAsync(dto.ImageFile, "menu-items");
             }
 
@@ -164,7 +174,6 @@ namespace PizzaApp.Controllers
             return Ok(pizzas);
         }
 
-        // Używane, gdy klient kliknie w konkretną pizzę
         [HttpGet("{id}")]
         public async Task<ActionResult<PizzaDetailsDto>> GetPizza(Guid id)
         {
@@ -174,7 +183,7 @@ namespace PizzaApp.Controllers
 
             if (pizza == null)
             {
-                return NotFound($"Wybrana nie istnieje.");
+                return NotFound($"Wybrana pizza nie istnieje.");
             }
 
             var detailsDto = new PizzaDetailsDto
@@ -182,25 +191,19 @@ namespace PizzaApp.Controllers
                 Id = pizza.Id,
                 MenuId = pizza.MenuId,
                 Name = pizza.Name,
-
                 Description = pizza.Description,
-
                 ImageUrl = pizza.ImageUrl,
-
                 Price = pizza.Price,
                 WeightGrams = pizza.WeightGrams,
                 Kcal = pizza.Kcal,
-
                 Style = pizza.Style.ToLookUpItemDto(),
                 Dough = pizza.Dough.ToLookUpItemDto(),
                 BaseSauce = pizza.BaseSauce.ToLookUpItemDto(),
                 Thickness = pizza.Thickness.ToLookUpItemDto(),
                 Shape = pizza.Shape.ToLookUpItemDto(),
-
                 DiameterCm = pizza.DiameterCm,
                 WidthCm = pizza.WidthCm,
                 LengthCm = pizza.LengthCm,
-
                 Ingredients = pizza.Ingredients.Select(i => new IngredientDto
                 {
                     Id = i.Id,
@@ -213,32 +216,22 @@ namespace PizzaApp.Controllers
             return Ok(detailsDto);
         }
 
-        // PUT: api/Pizza/{id}
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdatePizza(Guid id, [FromBody] UpdatePizzaDto dto)
         {
-            // POBIERANIE Z BAZY (EAGER LOADING)
             var pizza = await _context.Pizzas
                 .Include(p => p.Ingredients)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
-            if (pizza == null)
-            {
-                return NotFound("Wybrana pizza nie istnieje.");
-            }
+            if (pizza == null) return NotFound("Wybrana pizza nie istnieje.");
 
             if (!await _context.Menus.AnyAsync(m => m.Id == dto.MenuId))
-            {
                 return BadRequest("Wybrane menu nie istnieje.");
-            }
 
             var nameTaken = await _context.Pizzas
                 .AnyAsync(p => p.MenuId == dto.MenuId && p.Name == dto.Name && p.Id != id);
 
-            if (nameTaken)
-            {
-                return Conflict("Inna pizza w tym menu ma już taką nazwę.");
-            }
+            if (nameTaken) return Conflict("Inna pizza w tym menu ma już taką nazwę.");
 
             if (dto.Shape == PizzaShapeEnum.Round && (dto.DiameterCm == null || dto.DiameterCm <= 0))
                 return BadRequest("Dla pizzy okrągłej wymagana jest średnica.");
@@ -246,16 +239,12 @@ namespace PizzaApp.Controllers
             if (dto.Shape == PizzaShapeEnum.Rectangle && (dto.WidthCm == null || dto.LengthCm == null))
                 return BadRequest("Dla pizzy prostokątnej wymagane są wymiary boków.");
 
-            // Pobieramy z bazy te składniki, których ID przesłał user
             var newIngredients = await _context.Ingredients
                 .Where(i => dto.IngredientIds.Contains(i.Id))
                 .ToListAsync();
 
-            // Zabezpieczenie, gdy choć jeden z kilku ID nie istnieje
             if (newIngredients.Count != dto.IngredientIds.Count)
-            {
                 return BadRequest("Jeden lub więcej podanych składników nie istnieje.");
-            }
 
             pizza.MenuId = dto.MenuId;
             pizza.Name = dto.Name;
@@ -264,7 +253,6 @@ namespace PizzaApp.Controllers
             pizza.Price = dto.Price;
             pizza.WeightGrams = dto.WeightGrams;
             pizza.Kcal = dto.Kcal;
-
             pizza.Style = dto.Style;
             pizza.Dough = dto.Dough;
             pizza.BaseSauce = dto.BaseSauce;
@@ -284,32 +272,23 @@ namespace PizzaApp.Controllers
                 pizza.LengthCm = dto.LengthCm!.Value;
             }
 
-            // UPDATE RELACJI MANY-TO-MANY
             pizza.Ingredients = newIngredients;
-
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
-        // DELETE: api/Pizza/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeletePizza(Guid id)
         {
             var pizza = await _context.Pizzas.FindAsync(id);
-
-            if (pizza == null)
-            {
-                return NotFound("Wybrana pizza nie istnieje.");
-            }
+            if (pizza == null) return NotFound("Wybrana pizza nie istnieje.");
 
             _context.Pizzas.Remove(pizza);
             await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
-        // GET: api/Pizza/search
         [HttpGet("search")]
         public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromQuery] PizzaSearchCriteriaDto criteria)
         {
@@ -324,71 +303,42 @@ namespace PizzaApp.Controllers
                         .ThenInclude(pz => pz.Brand)
                 .AsQueryable();
 
-            // City Filter (Required)
             query = query.Where(p => p.Menu.Pizzeria.Address!.City!.Id.ToString() == criteria.CityId);
-
-            // Only Active Menus
             query = query.Where(p => p.Menu.IsActive);
 
-            // Brand Filter
             if (criteria.BrandIds != null && criteria.BrandIds.Any())
-            {
                 query = query.Where(p => criteria.BrandIds.Contains(p.Menu.Pizzeria.BrandId));
-            }
 
-            // Style Filter
             if (criteria.Styles != null && criteria.Styles.Any())
-            {
                 query = query.Where(p => criteria.Styles.Contains(p.Style));
-            }
 
-            // Dough Filter
             if (criteria.Doughs != null && criteria.Doughs.Any())
-            {
                 query = query.Where(p => criteria.Doughs.Contains(p.Dough));
-            }
 
-            // Thickness Filter
             if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
-            {
                 query = query.Where(p => criteria.Thicknesses.Contains(p.Thickness));
-            }
 
-            // Shape Filter
             if (criteria.Shapes != null && criteria.Shapes.Any())
-            {
                 query = query.Where(p => criteria.Shapes.Contains(p.Shape));
-            }
 
-            // Sauce Filter
             if (criteria.Sauces != null && criteria.Sauces.Any())
-            {
                 query = query.Where(p => criteria.Sauces.Contains(p.BaseSauce));
-            }
 
-            // Price Range Filter
             if (criteria.MinPrice.HasValue)
-            {
                 query = query.Where(p => p.Price >= criteria.MinPrice.Value);
-            }
 
             if (criteria.MaxPrice.HasValue)
-            {
                 query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
-            }
 
-            // Sorting
             query = criteria.SortBy switch
             {
                 SortOptionEnum.PriceAsc => query.OrderBy(p => p.Price),
                 SortOptionEnum.PriceDesc => query.OrderByDescending(p => p.Price),
                 SortOptionEnum.NameAsc => query.OrderBy(p => p.Name),
                 SortOptionEnum.NameDesc => query.OrderByDescending(p => p.Name),
-                _ => query.OrderBy(p => p.Name) // Default
+                _ => query.OrderBy(p => p.Name)
             };
 
-            // Pagination - Fetch data with anonymous type first
-            var totalCount = await query.CountAsync();
             var pizzaData = await query
                 .Skip((criteria.PageNumber - 1) * criteria.PageSize)
                 .Take(criteria.PageSize)
@@ -411,25 +361,19 @@ namespace PizzaApp.Controllers
                 })
                 .ToListAsync();
 
-            // Calculate PricePerSqCm in memory
             var pizzas = pizzaData.Select(p =>
             {
                 double area;
                 if (p.Shape == PizzaShapeEnum.Round)
                 {
-                    // Area = π * (diameter/2)²
                     var radius = p.DiameterCm / 2.0;
                     area = Math.PI * radius * radius;
                 }
-                else // Rectangle
+                else
                 {
-                    // Area = width * length
                     area = p.WidthCm * p.LengthCm;
                 }
-
-                // Prevent division by zero
                 var pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
-
                 return new PizzaSearchResultDto
                 {
                     Id = p.Id,
@@ -448,6 +392,58 @@ namespace PizzaApp.Controllers
             }).ToList();
 
             return Ok(pizzas);
+        }
+
+        // ==========================================================
+        //              WALIDACJA PLIKU (SECURITY)
+        // ==========================================================
+        private (bool IsValid, string? ErrorMessage) ValidateImageFile(IFormFile file)
+        {
+            // 1. rozmiar (Hard Limit)
+            if (file.Length > MaxFileSize)
+            {
+                return (false, $"Plik jest za duży. Maksymalny rozmiar to {MaxFileSize / 1024 / 1024}MB.");
+            }
+
+            // 2. rozszerzenie (Whitelist)
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+            if (!allowedExtensions.Contains(extension))
+            {
+                return (false, "Niedozwolony format pliku. Akceptujemy tylko: .jpg, .png, .webp.");
+            }
+
+            // 3. MIME Type
+            var allowedMimeTypes = new[] { "image/jpeg", "image/png", "image/webp" };
+            if (!allowedMimeTypes.Contains(file.ContentType.ToLowerInvariant()))
+            {
+                return (false, "Nieprawidłowy typ zawartości (MIME).");
+            }
+
+            // 4. Magic Bytes (zabezpieczenie przed zmianą nazwy .exe na .png)
+            try
+            {
+                using var stream = file.OpenReadStream();
+                var header = new byte[4];
+                stream.ReadExactly(header, 0, 4);
+
+                var isJpeg = header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF;
+                var isPng = header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47;
+                // WebP (uproszczone): sprawdzenie czy nie jest pusty i czy RIFF istnieje (bajty 0-3)
+                var isRiff = header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46;
+
+                if (!isJpeg && !isPng && !isRiff)
+                {
+                    return (false, "Plik wygląda na uszkodzony lub ma fałszywe rozszerzenie.");
+                }
+            }
+            catch
+            {
+                return (false, "Nie udało się zweryfikować pliku.");
+            }
+
+            return (true, null);
         }
     }
 }
