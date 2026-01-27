@@ -9,7 +9,7 @@ namespace PizzaApp.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize] 
+    [Authorize]
     public class AddressController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -110,14 +110,14 @@ namespace PizzaApp.Controllers
             return NoContent();
         }
 
-        
+
         // GET: api/Address/GetAll
         [HttpGet("GetAll")]
         public async Task<ActionResult<IEnumerable<Address>>> GetAddresses()
         {
             return await _context.Addresses
-                .Include(a => a.City) 
-                .ThenInclude(c => c.Country) 
+                .Include(a => a.City)
+                .ThenInclude(c => c.Country)
                 .ToListAsync();
         }
 

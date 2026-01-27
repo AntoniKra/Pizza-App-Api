@@ -16,7 +16,7 @@ namespace PizzaApp.Controllers
         private readonly AppDbContext _context;
         private readonly UserContextService _userContextService;
 
-        public PizzeriaController(AppDbContext context,UserContextService userContextService)
+        public PizzeriaController(AppDbContext context, UserContextService userContextService)
         {
             _context = context;
             _userContextService = userContextService;
@@ -29,7 +29,7 @@ namespace PizzaApp.Controllers
             var brand = await _context.Brands.FindAsync(dto.Brand.Id);
             if (brand == null)
                 return BadRequest("Podana marka nie istnieje.");
-            var userId =  _userContextService.GetUserId();
+            var userId = _userContextService.GetUserId();
 
             if (brand.Owner.Id != userId) return Forbid();
 

@@ -18,6 +18,11 @@ appsettings.Local.json
 appsettings.Production.json
 .env
 
-
 .DS_Store
 Thumbs.db
+
+# Googe Cloud keys
+gcp-keys.json
+*.json
+!appsettings.json
+!appsettings.Development.json
