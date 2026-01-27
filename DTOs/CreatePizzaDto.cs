@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 using PizzaApp.Enums;
 
 namespace PizzaApp.DTOs
@@ -17,6 +18,7 @@ namespace PizzaApp.DTOs
         [Range(0.01, 10000)]
         public decimal Price { get; set; }
         public string? ImageUrl { get; set; }
+        public IFormFile? ImageFile { get; set; }
 
 
         [Required]

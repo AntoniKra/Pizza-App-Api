@@ -167,7 +167,7 @@ namespace PizzaApp.Controllers
                     Name = m.Name,
                     Description = m.Description,
                     IsActive = m.IsActive,
-                    PizzasCount = m.Pizzas.Count 
+                    PizzasCount = m.Pizzas.Count
                 })
                 .ToListAsync();
 
@@ -180,9 +180,9 @@ namespace PizzaApp.Controllers
             return Ok(menus);
         }
 
-       
 
-        
+
+
 
         // Metoda pomocnicza
         private async Task DeactivateOtherMenus(Guid pizzeriaId, Guid currentMenuId)

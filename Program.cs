@@ -46,7 +46,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUserContextService, UserContextService>();
-builder.Services.AddSingleton<IFileService, GoogleFileService>();
+builder.Services.AddScoped<IFileService, GoogleFileService>();
 
 var app = builder.Build();
 

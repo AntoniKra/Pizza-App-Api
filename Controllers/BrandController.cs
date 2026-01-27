@@ -76,7 +76,7 @@ namespace PizzaApp.Controllers
         {
             var userId = _userContextService.GetUserId();
 
-            if(!userId.HasValue)
+            if (!userId.HasValue)
             {
                 return Unauthorized();
             }
@@ -120,7 +120,7 @@ namespace PizzaApp.Controllers
             {
                 return NotFound("Marka nie istnieje.");
             }
-            if(brand.Owner!.Id != userId.Value)
+            if (brand.Owner!.Id != userId.Value)
             {
                 return Forbid();
             }

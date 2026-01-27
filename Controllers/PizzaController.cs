@@ -5,6 +5,7 @@ using PizzaApp.DTOs;
 using PizzaApp.Entities;
 using PizzaApp.Enums;
 using PizzaApp.Extensions;
+using PizzaApp.Services;
 
 namespace PizzaApp.Controllers
 {
@@ -13,14 +14,16 @@ namespace PizzaApp.Controllers
     public class PizzaController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IFileService _fileService;
 
-        public PizzaController(AppDbContext context)
+        public PizzaController(AppDbContext context, IFileService fileService)
         {
             _context = context;
+            _fileService = fileService;
         }
 
         [HttpPost]
-        public async Task<ActionResult> CreatePizza([FromBody] CreatePizzaDto dto)
+        public async Task<ActionResult> CreatePizza([FromForm] CreatePizzaDto dto)
         {
             // Validation
             var menuExists = await _context.Menus.AnyAsync(m => m.Id == dto.MenuId);
@@ -57,6 +60,13 @@ namespace PizzaApp.Controllers
                 return BadRequest("Podano nieistniejące składniki.");
             }
 
+            string? uploadedImageUrl = null;
+            if (dto.ImageFile != null && dto.ImageFile.Length > 0)
+            {
+                // Wysłanie do Google Cloud i zwrócenie linku
+                uploadedImageUrl = await _fileService.UploadFileAsync(dto.ImageFile, "menu-items");
+            }
+
             // MAPPING (DTO -> Entity)
             var pizza = new Pizza
             {
@@ -64,7 +74,7 @@ namespace PizzaApp.Controllers
                 Name = dto.Name,
                 Description = dto.Description,
                 Price = dto.Price,
-                ImageUrl = dto.ImageUrl,
+                ImageUrl = uploadedImageUrl,
                 WeightGrams = dto.WeightGrams,
                 Kcal = dto.Kcal,
 
@@ -84,7 +94,12 @@ namespace PizzaApp.Controllers
             _context.Pizzas.Add(pizza);
             await _context.SaveChangesAsync();
 
-            return Created($"api/pizza/{pizza.Id}", new { id = pizza.Id, name = pizza.Name });
+            return CreatedAtAction(nameof(GetPizza), new { id = pizza.Id }, new
+            {
+                id = pizza.Id,
+                name = pizza.Name,
+                imageUrl = pizza.ImageUrl
+            });
         }
 
         [HttpGet("GetAll")]
