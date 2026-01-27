@@ -45,16 +45,15 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<IUserContextService,UserContextService>();
-
-
+builder.Services.AddScoped<IUserContextService, UserContextService>();
+builder.Services.AddSingleton<IFileService, GoogleFileService>();
 
 var app = builder.Build();
 
 app.UseCors(x => x
     .AllowAnyMethod()
     .AllowAnyHeader()
-    .SetIsOriginAllowed(origin => true) 
+    .SetIsOriginAllowed(origin => true)
     .AllowCredentials());
 
 using (var scope = app.Services.CreateScope())
