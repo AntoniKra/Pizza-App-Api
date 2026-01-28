@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using PizzaApp.Enums;
+using PizzaApp.DTOs;
 
 namespace PizzaApp.DTOs
 {
@@ -18,23 +19,24 @@ namespace PizzaApp.DTOs
         [Range(0.01, 10000)]
         public decimal Price { get; set; }
         public string? ImageUrl { get; set; }
+
         public IFormFile? ImageFile { get; set; }
 
 
         [Required]
-        public PizzaStyleEnum Style { get; set; }
+        public required LookUpItemDto Style { get; set; }
 
         [Required]
-        public SauceTypeEnum BaseSauce { get; set; }
+        public required LookUpItemDto BaseSauce { get; set; }
 
         [Required]
-        public DoughTypeEnum Dough { get; set; }
+        public required LookUpItemDto Dough { get; set; }
 
         [Required]
-        public CrustThicknessEnum Thickness { get; set; }
+        public required LookUpItemDto Thickness { get; set; }
 
         [Required]
-        public PizzaShapeEnum Shape { get; set; }
+        public required LookUpItemDto Shape { get; set; }
 
         public double? DiameterCm { get; set; }
         public double? WidthCm { get; set; }

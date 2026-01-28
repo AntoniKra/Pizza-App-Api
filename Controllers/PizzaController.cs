@@ -40,42 +40,63 @@ namespace PizzaApp.Controllers
                 return Conflict($"Pizza '{dto.Name}' już istnieje w tym menu.");
             }
 
-            if (dto.Shape == PizzaShapeEnum.Round)
+            // Parsowanie
+            if (!Enum.TryParse<PizzaStyleEnum>(dto.Style.Id, true, out var styleEnum))
+            {
+                return BadRequest($"Nieprawidłowe ID stylu: {dto.Style.Id}");
+            }
+
+            if (!Enum.TryParse<DoughTypeEnum>(dto.Dough.Id, true, out var doughEnum))
+            {
+                return BadRequest($"Nieprawidłowe ID ciasta: {dto.Dough.Id}");
+            }
+
+            if (!Enum.TryParse<SauceTypeEnum>(dto.BaseSauce.Id, true, out var sauceEnum))
+            {
+                return BadRequest($"Nieprawidłowe ID sosu: {dto.BaseSauce.Id}");
+            }
+
+            if (!Enum.TryParse<CrustThicknessEnum>(dto.Thickness.Id, true, out var thicknessEnum))
+            {
+                return BadRequest($"Nieprawidłowe ID grubości: {dto.Thickness.Id}");
+            }
+
+            if (!Enum.TryParse<PizzaShapeEnum>(dto.Shape.Id, true, out var shapeEnum))
+            {
+                return BadRequest($"Nieprawidłowe ID kształtu: {dto.Shape.Id}");
+            }
+
+
+            // WALIDACJA WYMIARÓW
+            if (shapeEnum == PizzaShapeEnum.Round)
             {
                 if (dto.DiameterCm == null || dto.DiameterCm <= 0)
                     return BadRequest("Dla pizzy okrągłej wymagana jest średnica.");
                 dto.WidthCm = null;
                 dto.LengthCm = null;
             }
-            else if (dto.Shape == PizzaShapeEnum.Rectangle)
+            else if (shapeEnum == PizzaShapeEnum.Rectangle)
             {
                 if (dto.WidthCm == null || dto.LengthCm == null)
-                    return BadRequest("Dla pizzy prostokątnej wymagane są wymiary boków.");
+                    return BadRequest("Dla pizzy prostokątnej wymagane są boki.");
                 dto.DiameterCm = null;
-            }
-
-            var existingIngredients = await _context.Ingredients
-                .Where(i => dto.IngredientIds.Contains(i.Id))
-                .ToListAsync();
-
-            if (existingIngredients.Count != dto.IngredientIds.Count)
-            {
-                return BadRequest("Podano nieistniejące składniki.");
             }
 
             // WALIDACJA I UPLOAD PLIKU
             string? uploadedImageUrl = null;
             if (dto.ImageFile != null && dto.ImageFile.Length > 0)
             {
-                var (isValid, errorMessage) = ValidateImageFile(dto.ImageFile);
-
-                if (!isValid)
-                {
-                    return BadRequest($"Błąd pliku: {errorMessage}");
-                }
+                var (isValid, error) = ValidateImageFile(dto.ImageFile);
+                if (!isValid) return BadRequest(error);
 
                 uploadedImageUrl = await _fileService.UploadFileAsync(dto.ImageFile, "menu-items");
             }
+            // ZAPIS DO BAZY
+            var existingIngredients = await _context.Ingredients
+                .Where(i => dto.IngredientIds.Contains(i.Id))
+                .ToListAsync();
+
+            if (existingIngredients.Count != dto.IngredientIds.Count) return BadRequest("Błędne składniki.");
 
             // MAPPING (DTO -> Entity)
             var pizza = new Pizza
@@ -88,16 +109,16 @@ namespace PizzaApp.Controllers
                 WeightGrams = dto.WeightGrams,
                 Kcal = dto.Kcal,
 
-                Style = dto.Style,
-                Dough = dto.Dough,
-                BaseSauce = dto.BaseSauce,
-                Thickness = dto.Thickness,
-                Shape = dto.Shape,
+                // SPAROWANE ENUMY
+                Style = styleEnum,
+                Dough = doughEnum,
+                BaseSauce = sauceEnum,
+                Thickness = thicknessEnum,
+                Shape = shapeEnum,
 
                 DiameterCm = dto.DiameterCm ?? 0,
                 WidthCm = dto.WidthCm ?? 0,
                 LengthCm = dto.LengthCm ?? 0,
-
                 Ingredients = existingIngredients
             };
 
