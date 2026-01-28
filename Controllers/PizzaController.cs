@@ -300,9 +300,9 @@ namespace PizzaApp.Controllers
             return NoContent();
         }
 
-        [HttpGet("search")]
+        [HttpPost("search")]
         [Produces("application/json")]
-        public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromQuery] PizzaSearchCriteriaDto criteria)
+        public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromBody] PizzaSearchCriteriaDto criteria)
         {
             var query = _context.Pizzas
                 .Include(p => p.Ingredients)
@@ -310,6 +310,7 @@ namespace PizzaApp.Controllers
                 .Include(p => p.Menu).ThenInclude(m => m.Pizzeria).ThenInclude(pz => pz.Brand)
                 .AsQueryable();
 
+            // Podstawowe filtry
             query = query.Where(p => p.Menu.Pizzeria.Address!.City!.Id.ToString() == criteria.CityId);
             query = query.Where(p => p.Menu.IsActive);
 
@@ -317,26 +318,53 @@ namespace PizzaApp.Controllers
                 query = query.Where(p => criteria.BrandIds.Contains(p.Menu.Pizzeria.BrandId));
 
             if (criteria.Styles != null && criteria.Styles.Any())
-                query = query.Where(p => criteria.Styles.Contains(p.Style));
+            {
+                var styleEnums = criteria.Styles
+                    .Select(s => Enum.Parse<PizzaStyleEnum>(s.Id, true))
+                    .ToList();
+                query = query.Where(p => styleEnums.Contains(p.Style));
+            }
 
             if (criteria.Doughs != null && criteria.Doughs.Any())
-                query = query.Where(p => criteria.Doughs.Contains(p.Dough));
+            {
+                var doughEnums = criteria.Doughs
+                    .Select(d => Enum.Parse<DoughTypeEnum>(d.Id, true))
+                    .ToList();
+                query = query.Where(p => doughEnums.Contains(p.Dough));
+            }
 
             if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
-                query = query.Where(p => criteria.Thicknesses.Contains(p.Thickness));
+            {
+                var thicknessEnums = criteria.Thicknesses
+                    .Select(t => Enum.Parse<CrustThicknessEnum>(t.Id, true))
+                    .ToList();
+                query = query.Where(p => thicknessEnums.Contains(p.Thickness));
+            }
 
             if (criteria.Shapes != null && criteria.Shapes.Any())
-                query = query.Where(p => criteria.Shapes.Contains(p.Shape));
+            {
+                var shapeEnums = criteria.Shapes
+                    .Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true))
+                    .ToList();
+                query = query.Where(p => shapeEnums.Contains(p.Shape));
+            }
 
             if (criteria.Sauces != null && criteria.Sauces.Any())
-                query = query.Where(p => criteria.Sauces.Contains(p.BaseSauce));
+            {
+                var sauceEnums = criteria.Sauces
+                    .Select(s => Enum.Parse<SauceTypeEnum>(s.Id, true))
+                    .ToList();
+                query = query.Where(p => sauceEnums.Contains(p.BaseSauce));
+            }
 
+            // Cena
             if (criteria.MinPrice.HasValue)
                 query = query.Where(p => p.Price >= criteria.MinPrice.Value);
 
             if (criteria.MaxPrice.HasValue)
                 query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
 
+            // Sortowanie
             query = criteria.SortBy switch
             {
                 SortOptionEnum.PriceAsc => query.OrderBy(p => p.Price),
@@ -346,6 +374,7 @@ namespace PizzaApp.Controllers
                 _ => query.OrderBy(p => p.Name)
             };
 
+            // Pobranie danych (Projekcja)
             var pizzaData = await query
                 .Skip((criteria.PageNumber - 1) * criteria.PageSize)
                 .Take(criteria.PageSize)
@@ -368,6 +397,7 @@ namespace PizzaApp.Controllers
                 })
                 .ToListAsync();
 
+            // Mapowanie końcowe (Obliczenia)
             var pizzas = pizzaData.Select(p =>
             {
                 double area;
@@ -381,6 +411,7 @@ namespace PizzaApp.Controllers
                     area = p.WidthCm * p.LengthCm;
                 }
                 var pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
+
                 return new PizzaSearchResultDto
                 {
                     Id = p.Id,

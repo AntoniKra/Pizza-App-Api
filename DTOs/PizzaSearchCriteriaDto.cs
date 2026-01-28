@@ -9,11 +9,11 @@ namespace PizzaApp.DTOs
         public required string CityId { get; set; }
 
         public List<Guid>? BrandIds { get; set; }
-        public List<PizzaStyleEnum>? Styles { get; set; }
-        public List<DoughTypeEnum>? Doughs { get; set; }
-        public List<CrustThicknessEnum>? Thicknesses { get; set; }
-        public List<PizzaShapeEnum>? Shapes { get; set; }
-        public List<SauceTypeEnum>? Sauces { get; set; }
+        public List<LookUpItemDto>? Styles { get; set; }
+        public List<LookUpItemDto>? Doughs { get; set; }
+        public List<LookUpItemDto>? Thicknesses { get; set; }
+        public List<LookUpItemDto>? Shapes { get; set; }
+        public List<LookUpItemDto>? Sauces { get; set; }
 
         public decimal? MinPrice { get; set; }
         public decimal? MaxPrice { get; set; }
