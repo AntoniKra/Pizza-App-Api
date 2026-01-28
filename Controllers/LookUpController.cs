@@ -4,6 +4,7 @@ using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Enums;
 using PizzaApp.Utils;
+using PizzaApp.Extensions;
 
 namespace PizzaApp.Controllers
 {
@@ -30,14 +31,15 @@ namespace PizzaApp.Controllers
                 })
                 .ToListAsync();
 
+            // Pobranie Enumów, zeby Front dostał ID(string) i Name(opis po polsku), np. ID="Neopolitan", Name="Neapolitańska"
             var filters = new PizzaFiltersDto
             {
                 Restaurants = brands,
-                Styles = EnumHelper.GetAllValues<PizzaStyleEnum>(),
-                Doughs = EnumHelper.GetAllValues<DoughTypeEnum>(),
-                Thicknesses = EnumHelper.GetAllValues<CrustThicknessEnum>(),
-                Shapes = EnumHelper.GetAllValues<PizzaShapeEnum>(),
-                Sauces = EnumHelper.GetAllValues<SauceTypeEnum>(),
+                Styles = Enum.GetValues<PizzaStyleEnum>().Select(e => e.ToLookUpItemDto()).ToList(),
+                Doughs = Enum.GetValues<DoughTypeEnum>().Select(e => e.ToLookUpItemDto()).ToList(),
+                Thicknesses = Enum.GetValues<CrustThicknessEnum>().Select(e => e.ToLookUpItemDto()).ToList(),
+                Shapes = Enum.GetValues<PizzaShapeEnum>().Select(e => e.ToLookUpItemDto()).ToList(),
+                Sauces = Enum.GetValues<SauceTypeEnum>().Select(e => e.ToLookUpItemDto()).ToList(),
                 MaxPriceLimit = 150
             };
 

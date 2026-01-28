@@ -1,3 +1,5 @@
+using PizzaApp.DTOs;
+
 namespace PizzaApp.DTOs
 {
     public class PizzaSearchResultDto
@@ -12,7 +14,7 @@ namespace PizzaApp.DTOs
         public double WeightGrams { get; set; }
         public double Kcal { get; set; }
         public double? DiameterCm { get; set; }
-        public string StyleName { get; set; } = string.Empty;
+        public LookUpItemDto Style { get; set; }
         public decimal PricePerSqCm { get; set; }
 
         public List<string> IngredientNames { get; set; } = new();
