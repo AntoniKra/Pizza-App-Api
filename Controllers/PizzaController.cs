@@ -29,6 +29,14 @@ namespace PizzaApp.Controllers
         [HttpPost]
         public async Task<ActionResult> CreatePizza([FromForm] CreatePizzaDto dto)
         {
+            Console.WriteLine($"Name: {dto.Name}");
+            Console.WriteLine($"Price: {dto.Price}");
+            Console.WriteLine($"WeightGrams (DTO): {dto.WeightGrams}");
+            Console.WriteLine($"Kcal (DTO): {dto.Kcal}");
+            Console.WriteLine($"DiameterCm (DTO): {dto.DiameterCm}");
+
+            if (dto.Style != null) Console.WriteLine($"Style ID: {dto.Style.Id}");
+            else Console.WriteLine("Style is NULL!");
             var menuExists = await _context.Menus.AnyAsync(m => m.Id == dto.MenuId);
             if (!menuExists)
             {
@@ -304,67 +312,95 @@ namespace PizzaApp.Controllers
         [Produces("application/json")]
         public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromBody] PizzaSearchCriteriaDto criteria)
         {
+            // --- DIAGNOSTYKA (Patrz w konsolę po kliknięciu Szukaj!) ---
+            Console.WriteLine("=== SEARCH REQUEST DEBUG ===");
+            Console.WriteLine($"CityId: {criteria.CityId}");
+            Console.WriteLine($"MinDiameter: {criteria.MinDiameter}");
+
+            if (criteria.BrandIds != null)
+                Console.WriteLine($"BrandIds Count: {criteria.BrandIds.Count}. First: {(criteria.BrandIds.FirstOrDefault())}");
+            else
+                Console.WriteLine("BrandIds is NULL");
+
+            if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
+                Console.WriteLine($"Thickness Filter: {criteria.Thicknesses.First().Id} (Name: {criteria.Thicknesses.First().Name})");
+            // -----------------------------------------------------------
+
             var query = _context.Pizzas
                 .Include(p => p.Ingredients)
                 .Include(p => p.Menu).ThenInclude(m => m.Pizzeria).ThenInclude(pz => pz.Address).ThenInclude(a => a.City)
                 .Include(p => p.Menu).ThenInclude(m => m.Pizzeria).ThenInclude(pz => pz.Brand)
                 .AsQueryable();
 
-            // Podstawowe filtry
+            // 1. MIASTO & ACTIVE
             query = query.Where(p => p.Menu.Pizzeria.Address!.City!.Id.ToString() == criteria.CityId);
             query = query.Where(p => p.Menu.IsActive);
 
+            // 2. BRAND (RESTAURACJA)
             if (criteria.BrandIds != null && criteria.BrandIds.Any())
+            {
+                // Tutaj upewniamy się, że porównujemy GUID do GUID
                 query = query.Where(p => criteria.BrandIds.Contains(p.Menu.Pizzeria.BrandId));
-
-            if (criteria.Styles != null && criteria.Styles.Any())
-            {
-                var styleEnums = criteria.Styles
-                    .Select(s => Enum.Parse<PizzaStyleEnum>(s.Id, true))
-                    .ToList();
-                query = query.Where(p => styleEnums.Contains(p.Style));
             }
 
-            if (criteria.Doughs != null && criteria.Doughs.Any())
+            // 3. ŚREDNICA (NAPRAWIONA LOGIKA)
+            if (criteria.MinDiameter.HasValue)
             {
-                var doughEnums = criteria.Doughs
-                    .Select(d => Enum.Parse<DoughTypeEnum>(d.Id, true))
-                    .ToList();
-                query = query.Where(p => doughEnums.Contains(p.Dough));
+                var minDia = criteria.MinDiameter.Value;
+                // Logika: Pokaż pizzę JEŚLI (jest Prostokątna) LUB (jest Okrągła I duża)
+                query = query.Where(p =>
+                    p.Shape == PizzaShapeEnum.Rectangle ||
+                    (p.Shape == PizzaShapeEnum.Round && p.DiameterCm >= minDia)
+                );
             }
 
-            if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
+            // 4. FILTRY ENUMÓW (Style, Kształty, Grubości)
+            try
             {
-                var thicknessEnums = criteria.Thicknesses
-                    .Select(t => Enum.Parse<CrustThicknessEnum>(t.Id, true))
-                    .ToList();
-                query = query.Where(p => thicknessEnums.Contains(p.Thickness));
+                if (criteria.Styles != null && criteria.Styles.Any())
+                {
+                    var styleEnums = criteria.Styles.Select(s => Enum.Parse<PizzaStyleEnum>(s.Id, true)).ToList();
+                    query = query.Where(p => styleEnums.Contains(p.Style));
+                }
+
+                if (criteria.Shapes != null && criteria.Shapes.Any())
+                {
+                    var shapeEnums = criteria.Shapes.Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true)).ToList();
+                    query = query.Where(p => shapeEnums.Contains(p.Shape));
+                }
+
+                if (criteria.Doughs != null && criteria.Doughs.Any())
+                {
+                    var doughEnums = criteria.Doughs.Select(d => Enum.Parse<DoughTypeEnum>(d.Id, true)).ToList();
+                    query = query.Where(p => doughEnums.Contains(p.Dough));
+                }
+
+                // === TU CZĘSTO JEST BŁĄD ===
+                if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
+                {
+                    // Sprawdzamy czy frontend wysyła ID jako cyfrę ("1", "2") czy nazwę ("Thick")
+                    // Enum.Parse obsłuży oba przypadki, o ile string jest poprawny.
+                    var thicknessEnums = criteria.Thicknesses.Select(t => Enum.Parse<CrustThicknessEnum>(t.Id, true)).ToList();
+                    query = query.Where(p => thicknessEnums.Contains(p.Thickness));
+                }
+
+                if (criteria.Sauces != null && criteria.Sauces.Any())
+                {
+                    var sauceEnums = criteria.Sauces.Select(s => Enum.Parse<SauceTypeEnum>(s.Id, true)).ToList();
+                    query = query.Where(p => sauceEnums.Contains(p.BaseSauce));
+                }
+            }
+            catch (Exception ex)
+            {
+                // TERAZ WIDZISZ BŁĄD!
+                Console.WriteLine($"BŁĄD PARSOWANIA FILTRÓW: {ex.Message}");
+                // Nie przerywamy zapytania, ale wiesz, że filtry nie weszły
             }
 
-            if (criteria.Shapes != null && criteria.Shapes.Any())
-            {
-                var shapeEnums = criteria.Shapes
-                    .Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true))
-                    .ToList();
-                query = query.Where(p => shapeEnums.Contains(p.Shape));
-            }
+            // Cena i Sortowanie (Bez zmian)
+            if (criteria.MinPrice.HasValue) query = query.Where(p => p.Price >= criteria.MinPrice.Value);
+            if (criteria.MaxPrice.HasValue) query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
 
-            if (criteria.Sauces != null && criteria.Sauces.Any())
-            {
-                var sauceEnums = criteria.Sauces
-                    .Select(s => Enum.Parse<SauceTypeEnum>(s.Id, true))
-                    .ToList();
-                query = query.Where(p => sauceEnums.Contains(p.BaseSauce));
-            }
-
-            // Cena
-            if (criteria.MinPrice.HasValue)
-                query = query.Where(p => p.Price >= criteria.MinPrice.Value);
-
-            if (criteria.MaxPrice.HasValue)
-                query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
-
-            // Sortowanie
             query = criteria.SortBy switch
             {
                 SortOptionEnum.PriceAsc => query.OrderBy(p => p.Price),
@@ -374,7 +410,6 @@ namespace PizzaApp.Controllers
                 _ => query.OrderBy(p => p.Name)
             };
 
-            // Pobranie danych (Projekcja)
             var pizzaData = await query
                 .Skip((criteria.PageNumber - 1) * criteria.PageSize)
                 .Take(criteria.PageSize)
@@ -397,19 +432,11 @@ namespace PizzaApp.Controllers
                 })
                 .ToListAsync();
 
-            // Mapowanie końcowe (Obliczenia)
             var pizzas = pizzaData.Select(p =>
             {
-                double area;
-                if (p.Shape == PizzaShapeEnum.Round)
-                {
-                    var radius = p.DiameterCm / 2.0;
-                    area = Math.PI * radius * radius;
-                }
-                else
-                {
-                    area = p.WidthCm * p.LengthCm;
-                }
+                double area = (p.Shape == PizzaShapeEnum.Round)
+                    ? Math.PI * Math.Pow(p.DiameterCm / 2.0, 2)
+                    : p.WidthCm * p.LengthCm;
                 var pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
 
                 return new PizzaSearchResultDto

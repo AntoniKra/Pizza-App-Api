@@ -17,7 +17,7 @@ namespace PizzaApp.DTOs
 
         public decimal? MinPrice { get; set; }
         public decimal? MaxPrice { get; set; }
-
+        public double? MinDiameter { get; set; }
         public SortOptionEnum SortBy { get; set; } = SortOptionEnum.Default;
 
         public int PageNumber { get; set; } = 1;

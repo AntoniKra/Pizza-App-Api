@@ -5,6 +5,7 @@ using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Entities;
 using PizzaApp.Interfaces;
+using PizzaApp.Services;
 
 namespace PizzaApp.Controllers
 {
@@ -14,11 +15,13 @@ namespace PizzaApp.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IUserContextService _userContextService;
+        private readonly IFileService _fileService;
 
-        public BrandController(AppDbContext context, IUserContextService userContextService)
+        public BrandController(AppDbContext context, IUserContextService userContextService, IFileService fileService)
         {
             _context = context;
             _userContextService = userContextService;
+            _fileService = fileService;
         }
 
         // GET: api/Brand/GetAll
@@ -29,7 +32,7 @@ namespace PizzaApp.Controllers
                 .Select(b => new BrandDto
                 {
                     Id = b.Id,
-                    Name = b.Name
+                    Name = b.Name,
                 })
                 .ToListAsync();
 
@@ -72,7 +75,7 @@ namespace PizzaApp.Controllers
         // POST: api/Brand/
         [HttpPost]
         [Authorize]
-        public async Task<ActionResult> CreateBrand([FromBody] CreateBrandDto dto)
+        public async Task<ActionResult> CreateBrand([FromForm] CreateBrandDto dto)
         {
             var userId = _userContextService.GetUserId();
 
@@ -92,10 +95,36 @@ namespace PizzaApp.Controllers
                 return Conflict($"Marka o nazwie '{dto.Name}' już istnieje.");
             }
 
+            string? uploadedLogoUrl = null;
+
+            if (dto.LogoFile != null && dto.LogoFile.Length > 0)
+            {
+                if (dto.LogoFile.Length > 5 * 1024 * 1024)
+                {
+                    return BadRequest("Plik logo jest za duży. Maksymalny rozmiar to 5MB.");
+                }
+
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+                var extension = Path.GetExtension(dto.LogoFile.FileName).ToLowerInvariant();
+                if (!allowedExtensions.Contains(extension))
+                {
+                    return BadRequest("Niedozwolony format pliku. Dozwolone: JPG, PNG.");
+                }
+
+                try
+                {
+                    uploadedLogoUrl = await _fileService.UploadFileAsync(dto.LogoFile, "brands");
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, $"Błąd uploadu logo: {ex.Message}");
+                }
+            }
+
             var brand = new Brand
             {
                 Name = dto.Name,
-                Logo = dto.Logo,
+                Logo = uploadedLogoUrl,
                 OwnerId = userId.Value
             };
 
@@ -115,7 +144,10 @@ namespace PizzaApp.Controllers
             {
                 return Unauthorized();
             }
-            var brand = await _context.Brands.FindAsync(id);
+            var brand = await _context.Brands
+                .Include(b => b.Owner)
+                .FirstOrDefaultAsync(b => b.Id == id);
+
             if (brand == null)
             {
                 return NotFound("Marka nie istnieje.");

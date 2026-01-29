@@ -7,7 +7,7 @@ namespace PizzaApp.DTOs
         [Required]
         public required string Name { get; set; }
 
-        public string? Logo { get; set; }
+        public IFormFile? LogoFile { get; set; }
 
     }
 }
