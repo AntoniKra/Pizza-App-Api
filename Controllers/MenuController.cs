@@ -5,6 +5,7 @@ using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Entities;
 using PizzaApp.Interfaces;
+using PizzaApp.Extensions;
 
 namespace PizzaApp.Controllers
 {
@@ -37,6 +38,58 @@ namespace PizzaApp.Controllers
 
             if (menu == null) return NotFound("Menu nie istnieje.");
 
+            // Pobierz dane pizz
+            var pizzaData = menu.Pizzas.Select(p => new
+            {
+                p.Id,
+                p.Name,
+                BrandName = menu.Pizzeria?.Brand?.Name ?? "Unknown",
+                p.Description,
+                p.Price,
+                p.ImageUrl,
+                p.WeightGrams,
+                p.Kcal,
+                p.DiameterCm,
+                p.WidthCm,
+                p.LengthCm,
+                p.Shape,
+                p.Style,
+                IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
+            }).ToList();
+
+            // Oblicz PricePerSqCm i zmapuj na DTO
+            var pizzasDto = pizzaData.Select(p =>
+            {
+                double area;
+                if (p.Shape == PizzaApp.Enums.PizzaShapeEnum.Round)
+                {
+                    var radius = p.DiameterCm / 2.0;
+                    area = Math.PI * radius * radius;
+                }
+                else
+                {
+                    area = p.WidthCm * p.LengthCm;
+                }
+
+                var pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
+
+                return new PizzaSearchResultDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    BrandName = p.BrandName,
+                    Description = p.Description,
+                    Price = p.Price,
+                    ImageUrl = p.ImageUrl,
+                    WeightGrams = p.WeightGrams,
+                    Kcal = p.Kcal,
+                    DiameterCm = p.Shape == PizzaApp.Enums.PizzaShapeEnum.Round ? p.DiameterCm : null,
+                    Style = p.Style.ToLookUpItemDto(),
+                    PricePerSqCm = Math.Round(pricePerSqCm, 4),
+                    IngredientNames = p.IngredientNames
+                };
+            }).ToList();
+
             var dto = new MenuDetailsDto
             {
                 Id = menu.Id,
@@ -44,15 +97,7 @@ namespace PizzaApp.Controllers
                 Description = menu.Description,
                 IsActive = menu.IsActive,
                 PizzasCount = menu.Pizzas.Count,
-                Pizzas = menu.Pizzas.Select(p => new PizzaSearchResultDto
-                {
-                    Id = p.Id,
-                    Name = p.Name,
-                    Description = p.Description,
-                    Price = p.Price,
-                    ImageUrl = p.ImageUrl,
-                    IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
-                }).ToList()
+                Pizzas = pizzasDto
             };
 
             return Ok(dto);

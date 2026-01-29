@@ -26,9 +26,11 @@ namespace PizzaApp.Controllers
 
         // GET: api/Brand/GetAll
         [HttpGet("GetAll")]
+        [Authorize]
         public async Task<ActionResult<IEnumerable<BrandDto>>> GetBrands()
         {
-            var brands = await _context.Brands
+            var userId = _userContextService.GetUserId();
+            var brands = await _context.Brands.Where(x=>x.OwnerId == userId)
                 .Select(b => new BrandDto
                 {
                     Id = b.Id,

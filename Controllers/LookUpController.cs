@@ -45,5 +45,60 @@ namespace PizzaApp.Controllers
 
             return Ok(filters);
         }
+
+        // GET: api/LookUp/enum?type=PizzaStyleEnum&value=Neapolitan
+        [HttpGet("enum")]
+        public ActionResult<LookUpItemDto> GetEnumValue([FromQuery] string type, [FromQuery] string value)
+        {
+            if (string.IsNullOrWhiteSpace(type) || string.IsNullOrWhiteSpace(value))
+            {
+                return BadRequest("Typ i wartość enuma są wymagane.");
+            }
+
+            // Znajdź typ enuma w namespace PizzaApp.Enums
+            var enumType = Type.GetType($"PizzaApp.Enums.{type}");
+            
+            if (enumType == null || !enumType.IsEnum)
+            {
+                return BadRequest($"Nieprawidłowy typ enuma: {type}");
+            }
+
+            // Spróbuj sparsować wartość
+            if (!Enum.TryParse(enumType, value, true, out var enumValue))
+            {
+                return BadRequest($"Nieprawidłowa wartość dla enuma {type}: {value}");
+            }
+
+            // Użyj extension method do konwersji na LookUpItemDto
+            var result = ((Enum)enumValue).ToLookUpItemDto();
+
+            return Ok(result);
+        }
+
+        // GET: api/LookUp/enum/all?type=PizzaStyleEnum
+        [HttpGet("enum/all")]
+        public ActionResult<List<LookUpItemDto>> GetAllEnumValues([FromQuery] string type)
+        {
+            if (string.IsNullOrWhiteSpace(type))
+            {
+                return BadRequest("Typ enuma jest wymagany.");
+            }
+
+            // Znajdź typ enuma w namespace PizzaApp.Enums
+            var enumType = Type.GetType($"PizzaApp.Enums.{type}");
+            
+            if (enumType == null || !enumType.IsEnum)
+            {
+                return BadRequest($"Nieprawidłowy typ enuma: {type}");
+            }
+
+            // Pobierz wszystkie wartości i przekonwertuj na LookUpItemDto
+            var values = Enum.GetValues(enumType)
+                .Cast<Enum>()
+                .Select(e => e.ToLookUpItemDto())
+                .ToList();
+
+            return Ok(values);
+        }
     }
 }

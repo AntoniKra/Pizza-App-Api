@@ -236,7 +236,7 @@ namespace PizzaApp.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdatePizza(Guid id, [FromBody] UpdatePizzaDto dto)
+        public async Task<IActionResult> UpdatePizza(Guid id, [FromForm] UpdatePizzaDto dto)
         {
             var pizza = await _context.Pizzas
                 .Include(p => p.Ingredients)
@@ -244,20 +244,54 @@ namespace PizzaApp.Controllers
 
             if (pizza == null) return NotFound("Wybrana pizza nie istnieje.");
 
-            if (!await _context.Menus.AnyAsync(m => m.Id == dto.MenuId))
-                return BadRequest("Wybrane menu nie istnieje.");
+            // PARSOWANIE ENUMÓW
+            if (!Enum.TryParse<PizzaStyleEnum>(dto.Style.Id, true, out var styleEnum))
+                return BadRequest($"Nieprawidłowe ID stylu: {dto.Style.Id}");
 
-            var nameTaken = await _context.Pizzas
-                .AnyAsync(p => p.MenuId == dto.MenuId && p.Name == dto.Name && p.Id != id);
+            if (!Enum.TryParse<DoughTypeEnum>(dto.Dough.Id, true, out var doughEnum))
+                return BadRequest($"Nieprawidłowe ID ciasta: {dto.Dough.Id}");
 
-            if (nameTaken) return Conflict("Inna pizza w tym menu ma już taką nazwę.");
+            if (!Enum.TryParse<SauceTypeEnum>(dto.BaseSauce.Id, true, out var sauceEnum))
+                return BadRequest($"Nieprawidłowe ID sosu: {dto.BaseSauce.Id}");
 
-            if (dto.Shape == PizzaShapeEnum.Round && (dto.DiameterCm == null || dto.DiameterCm <= 0))
+            if (!Enum.TryParse<CrustThicknessEnum>(dto.Thickness.Id, true, out var thicknessEnum))
+                return BadRequest($"Nieprawidłowe ID grubości: {dto.Thickness.Id}");
+
+            if (!Enum.TryParse<PizzaShapeEnum>(dto.Shape.Id, true, out var shapeEnum))
+                return BadRequest($"Nieprawidłowe ID kształtu: {dto.Shape.Id}");
+
+            // WALIDACJA WYMIARÓW
+            if (shapeEnum == PizzaShapeEnum.Round && (dto.DiameterCm == null || dto.DiameterCm <= 0))
                 return BadRequest("Dla pizzy okrągłej wymagana jest średnica.");
 
-            if (dto.Shape == PizzaShapeEnum.Rectangle && (dto.WidthCm == null || dto.LengthCm == null))
-                return BadRequest("Dla pizzy prostokątnej wymagane są wymiary boków.");
+            if (shapeEnum == PizzaShapeEnum.Rectangle && (dto.WidthCm == null || dto.LengthCm == null))
+                return BadRequest("Dla pizzy prostokątnej wymagane są boki.");
 
+            // WALIDACJA I UPLOAD NOWEGO PLIKU (jeśli dostarczony)
+            string? newImageUrl = pizza.ImageUrl; // Zachowaj stary jeśli nie ma nowego
+            if (dto.ImageFile != null && dto.ImageFile.Length > 0)
+            {
+                var (isValid, error) = ValidateImageFile(dto.ImageFile);
+                if (!isValid) return BadRequest(error);
+
+                // Upload nowego pliku
+                newImageUrl = await _fileService.UploadFileAsync(dto.ImageFile, "menu-items");
+
+                // Opcjonalnie: usuń stary plik (jeśli był)
+                if (!string.IsNullOrEmpty(pizza.ImageUrl))
+                {
+                    try
+                    {
+                        await _fileService.DeleteFileAsync(pizza.ImageUrl);
+                    }
+                    catch
+                    {
+                        // Ignoruj błędy usuwania starego pliku
+                    }
+                }
+            }
+
+            // WALIDACJA SKŁADNIKÓW
             var newIngredients = await _context.Ingredients
                 .Where(i => dto.IngredientIds.Contains(i.Id))
                 .ToListAsync();
@@ -265,20 +299,23 @@ namespace PizzaApp.Controllers
             if (newIngredients.Count != dto.IngredientIds.Count)
                 return BadRequest("Jeden lub więcej podanych składników nie istnieje.");
 
-            pizza.MenuId = dto.MenuId;
+            // AKTUALIZACJA ENCJI
             pizza.Name = dto.Name;
             pizza.Description = dto.Description;
-            pizza.ImageUrl = dto.ImageUrl;
+            pizza.ImageUrl = newImageUrl; // Nowy lub stary URL
             pizza.Price = dto.Price;
             pizza.WeightGrams = dto.WeightGrams;
             pizza.Kcal = dto.Kcal;
-            pizza.Style = dto.Style;
-            pizza.Dough = dto.Dough;
-            pizza.BaseSauce = dto.BaseSauce;
-            pizza.Thickness = dto.Thickness;
-            pizza.Shape = dto.Shape;
 
-            if (dto.Shape == PizzaShapeEnum.Round)
+            // PRZYPISANIE SPAROWANYCH ENUMÓW
+            pizza.Style = styleEnum;
+            pizza.Dough = doughEnum;
+            pizza.BaseSauce = sauceEnum;
+            pizza.Thickness = thicknessEnum;
+            pizza.Shape = shapeEnum;
+
+            // WYMIARY
+            if (shapeEnum == PizzaShapeEnum.Round)
             {
                 pizza.DiameterCm = dto.DiameterCm!.Value;
                 pizza.WidthCm = 0;

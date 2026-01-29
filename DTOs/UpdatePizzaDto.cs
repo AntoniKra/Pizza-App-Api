@@ -1,12 +1,10 @@
 using System.ComponentModel.DataAnnotations;
-using PizzaApp.Enums;
+using Microsoft.AspNetCore.Http;
 
 namespace PizzaApp.DTOs
 {
     public class UpdatePizzaDto
     {
-        [Required]
-        public Guid MenuId { get; set; }
 
         [Required(ErrorMessage = "Nazwa jest wymagana")]
         [MaxLength(100)]
@@ -16,17 +14,30 @@ namespace PizzaApp.DTOs
 
         [Range(0.01, 10000)]
         public decimal Price { get; set; }
+        
         public string? ImageUrl { get; set; }
+        
+        // Nowy plik obrazka (opcjonalny)
+        public IFormFile? ImageFile { get; set; }
 
         [Range(1, 10000)]
         public double WeightGrams { get; set; }
         public double Kcal { get; set; }
 
-        [Required] public PizzaStyleEnum Style { get; set; }
-        [Required] public SauceTypeEnum BaseSauce { get; set; }
-        [Required] public DoughTypeEnum Dough { get; set; }
-        [Required] public CrustThicknessEnum Thickness { get; set; }
-        [Required] public PizzaShapeEnum Shape { get; set; }
+        [Required] 
+        public required LookUpItemDto Style { get; set; }
+        
+        [Required] 
+        public required LookUpItemDto BaseSauce { get; set; }
+        
+        [Required] 
+        public required LookUpItemDto Dough { get; set; }
+        
+        [Required] 
+        public required LookUpItemDto Thickness { get; set; }
+        
+        [Required] 
+        public required LookUpItemDto Shape { get; set; }
 
         public double? DiameterCm { get; set; }
         public double? WidthCm { get; set; }

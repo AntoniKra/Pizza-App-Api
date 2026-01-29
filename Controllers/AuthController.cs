@@ -69,6 +69,8 @@ namespace PizzaApp.Controllers
 
         // POST: api/auth/login
         [HttpPost("Login")]
+        [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)] 
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Login(LoginDto dto)
         {
             var user = await _context.Accounts.FirstOrDefaultAsync(u => u.Email == dto.Email);
@@ -79,9 +81,17 @@ namespace PizzaApp.Controllers
             }
 
             var token = GenerateJwtToken(user);
+            bool isOwner = user is Owner;
 
-            return Ok(new { Token = token });
+            return Ok(new LoginResponseDto 
+            { 
+                Token = token,
+                Email = user.Email,
+                IsOwner = isOwner
+            });
         }
+
+
 
         private string GenerateJwtToken(Account user)
         {
