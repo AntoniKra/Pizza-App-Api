@@ -16,6 +16,7 @@ namespace PizzaApp.DTOs
         public double? DiameterCm { get; set; }
         public LookUpItemDto Style { get; set; }
         public decimal PricePerSqCm { get; set; }
+        public double KcalPerGram { get; set; }
 
         public List<string> IngredientNames { get; set; } = new();
     }

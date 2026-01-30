@@ -349,19 +349,8 @@ namespace PizzaApp.Controllers
         [Produces("application/json")]
         public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromBody] PizzaSearchCriteriaDto criteria)
         {
-            // --- DIAGNOSTYKA (Patrz w konsolę po kliknięciu Szukaj!) ---
-            Console.WriteLine("=== SEARCH REQUEST DEBUG ===");
-            Console.WriteLine($"CityId: {criteria.CityId}");
-            Console.WriteLine($"MinDiameter: {criteria.MinDiameter}");
-
-            if (criteria.BrandIds != null)
-                Console.WriteLine($"BrandIds Count: {criteria.BrandIds.Count}. First: {(criteria.BrandIds.FirstOrDefault())}");
-            else
-                Console.WriteLine("BrandIds is NULL");
-
-            if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
-                Console.WriteLine($"Thickness Filter: {criteria.Thicknesses.First().Id} (Name: {criteria.Thicknesses.First().Name})");
-            // -----------------------------------------------------------
+            // --- DIAGNOSTYKA ---
+            Console.WriteLine($"Search: City={criteria.CityId}, Sort={criteria.SortBy}");
 
             var query = _context.Pizzas
                 .Include(p => p.Ingredients)
@@ -369,29 +358,22 @@ namespace PizzaApp.Controllers
                 .Include(p => p.Menu).ThenInclude(m => m.Pizzeria).ThenInclude(pz => pz.Brand)
                 .AsQueryable();
 
-            // 1. MIASTO & ACTIVE
+            // 1. FILTRY PODSTAWOWE
             query = query.Where(p => p.Menu.Pizzeria.Address!.City!.Id.ToString() == criteria.CityId);
             query = query.Where(p => p.Menu.IsActive);
 
-            // 2. BRAND (RESTAURACJA)
             if (criteria.BrandIds != null && criteria.BrandIds.Any())
-            {
-                // Tutaj upewniamy się, że porównujemy GUID do GUID
                 query = query.Where(p => criteria.BrandIds.Contains(p.Menu.Pizzeria.BrandId));
-            }
 
-            // 3. ŚREDNICA (NAPRAWIONA LOGIKA)
             if (criteria.MinDiameter.HasValue)
             {
-                var minDia = criteria.MinDiameter.Value;
-                // Logika: Pokaż pizzę JEŚLI (jest Prostokątna) LUB (jest Okrągła I duża)
                 query = query.Where(p =>
                     p.Shape == PizzaShapeEnum.Rectangle ||
-                    (p.Shape == PizzaShapeEnum.Round && p.DiameterCm >= minDia)
+                    (p.Shape == PizzaShapeEnum.Round && p.DiameterCm >= criteria.MinDiameter.Value)
                 );
             }
 
-            // 4. FILTRY ENUMÓW (Style, Kształty, Grubości)
+            // 2. FILTRY ZAAWANSOWANE (ENUMY)
             try
             {
                 if (criteria.Styles != null && criteria.Styles.Any())
@@ -399,88 +381,74 @@ namespace PizzaApp.Controllers
                     var styleEnums = criteria.Styles.Select(s => Enum.Parse<PizzaStyleEnum>(s.Id, true)).ToList();
                     query = query.Where(p => styleEnums.Contains(p.Style));
                 }
-
-                if (criteria.Shapes != null && criteria.Shapes.Any())
-                {
-                    var shapeEnums = criteria.Shapes.Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true)).ToList();
-                    query = query.Where(p => shapeEnums.Contains(p.Shape));
-                }
-
                 if (criteria.Doughs != null && criteria.Doughs.Any())
                 {
                     var doughEnums = criteria.Doughs.Select(d => Enum.Parse<DoughTypeEnum>(d.Id, true)).ToList();
                     query = query.Where(p => doughEnums.Contains(p.Dough));
                 }
-
-                // === TU CZĘSTO JEST BŁĄD ===
                 if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
                 {
-                    // Sprawdzamy czy frontend wysyła ID jako cyfrę ("1", "2") czy nazwę ("Thick")
-                    // Enum.Parse obsłuży oba przypadki, o ile string jest poprawny.
                     var thicknessEnums = criteria.Thicknesses.Select(t => Enum.Parse<CrustThicknessEnum>(t.Id, true)).ToList();
                     query = query.Where(p => thicknessEnums.Contains(p.Thickness));
                 }
-
                 if (criteria.Sauces != null && criteria.Sauces.Any())
                 {
                     var sauceEnums = criteria.Sauces.Select(s => Enum.Parse<SauceTypeEnum>(s.Id, true)).ToList();
                     query = query.Where(p => sauceEnums.Contains(p.BaseSauce));
                 }
+                // Shape filter handles checkboxes
+                if (criteria.Shapes != null && criteria.Shapes.Any())
+                {
+                    var shapeEnums = criteria.Shapes.Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true)).ToList();
+                    query = query.Where(p => shapeEnums.Contains(p.Shape));
+                }
             }
             catch (Exception ex)
             {
-                // TERAZ WIDZISZ BŁĄD!
-                Console.WriteLine($"BŁĄD PARSOWANIA FILTRÓW: {ex.Message}");
-                // Nie przerywamy zapytania, ale wiesz, że filtry nie weszły
+                Console.WriteLine($"Błąd filtrów: {ex.Message}");
             }
 
-            // Cena i Sortowanie (Bez zmian)
+            // 3. CENA
             if (criteria.MinPrice.HasValue) query = query.Where(p => p.Price >= criteria.MinPrice.Value);
             if (criteria.MaxPrice.HasValue) query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
 
-            query = criteria.SortBy switch
+            // 4. SORTOWANIE W BAZIE (Tylko proste pola: Cena, Nazwa)
+            // Sortowanie wyliczane (Opłacalność, Kcal) robimy PÓŹNIEJ
+            switch (criteria.SortBy)
             {
-                SortOptionEnum.PriceAsc => query.OrderBy(p => p.Price),
-                SortOptionEnum.PriceDesc => query.OrderByDescending(p => p.Price),
-                SortOptionEnum.NameAsc => query.OrderBy(p => p.Name),
-                SortOptionEnum.NameDesc => query.OrderByDescending(p => p.Name),
-                _ => query.OrderBy(p => p.Name)
-            };
+                case SortOptionEnum.PriceAsc: query = query.OrderBy(p => p.Price); break;
+                case SortOptionEnum.PriceDesc: query = query.OrderByDescending(p => p.Price); break;
+                case SortOptionEnum.NameAsc: query = query.OrderBy(p => p.Name); break;
+                case SortOptionEnum.NameDesc: query = query.OrderByDescending(p => p.Name); break;
+                // Default: po nazwie, jeśli nie wybrano sortowania specjalnego
+                default:
+                    if ((int)criteria.SortBy < 6) query = query.OrderBy(p => p.Name);
+                    break;
+            }
 
-            var pizzaData = await query
-                .Skip((criteria.PageNumber - 1) * criteria.PageSize)
-                .Take(criteria.PageSize)
-                .Select(p => new
-                {
-                    p.Id,
-                    p.Name,
-                    BrandName = p.Menu.Pizzeria.Brand!.Name,
-                    p.Description,
-                    p.Price,
-                    p.ImageUrl,
-                    p.WeightGrams,
-                    p.Kcal,
-                    p.DiameterCm,
-                    p.WidthCm,
-                    p.LengthCm,
-                    p.Shape,
-                    p.Style,
-                    IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
-                })
-                .ToListAsync();
+            // 5. POBRANIE DANYCH (Materializacja do pamięci)
+            // UWAGA: Nie robimy tu jeszcze Skip/Take, jeśli sortujemy po polach wyliczanych!
+            var pizzaDataList = await query.ToListAsync();
 
-            var pizzas = pizzaData.Select(p =>
+            // 6. MAPOWANIE I WYLICZENIA
+            var result = pizzaDataList.Select(p =>
             {
+                // Pole powierzchni
                 double area = (p.Shape == PizzaShapeEnum.Round)
                     ? Math.PI * Math.Pow(p.DiameterCm / 2.0, 2)
                     : p.WidthCm * p.LengthCm;
-                var pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
+
+                // Opłacalność (zł / cm2)
+                decimal pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
+
+                // Gęstość (kcal / g) - Zabezpieczenie przed dzieleniem przez zero
+                double kcalPerGram = p.WeightGrams > 0 ? (double)p.Kcal / p.WeightGrams : 0;
 
                 return new PizzaSearchResultDto
                 {
                     Id = p.Id,
                     Name = p.Name,
-                    BrandName = p.BrandName,
+                    BrandName = p.Menu.Pizzeria.Brand!.Name,
                     Description = p.Description,
                     Price = p.Price,
                     ImageUrl = p.ImageUrl,
@@ -488,12 +456,37 @@ namespace PizzaApp.Controllers
                     Kcal = p.Kcal,
                     DiameterCm = p.Shape == PizzaShapeEnum.Round ? p.DiameterCm : null,
                     Style = p.Style.ToLookUpItemDto(),
+                    IngredientNames = p.Ingredients.Select(i => i.Name).ToList(),
+
+                    // Pola wyliczane
                     PricePerSqCm = Math.Round(pricePerSqCm, 4),
-                    IngredientNames = p.IngredientNames
+                    KcalPerGram = Math.Round(kcalPerGram, 2) // Zaokrąglamy do 2 miejsc
                 };
             }).ToList();
 
-            return Ok(pizzas);
+            // 7. SORTOWANIE W PAMIĘCI (Dla pól wyliczanych)
+            switch (criteria.SortBy)
+            {
+                case SortOptionEnum.ProfitabilityAsc: // Najtańsza za cm2
+                    result = result.OrderBy(p => p.PricePerSqCm).ToList();
+                    break;
+
+                case SortOptionEnum.KcalDensityDesc: // MASA (Dużo kcal w małej wadze)
+                    result = result.OrderByDescending(p => p.KcalPerGram).ToList();
+                    break;
+
+                case SortOptionEnum.KcalDensityAsc: // REDUKCJA (Mało kcal w dużej wadze - objętościówka)
+                    result = result.OrderBy(p => p.KcalPerGram).ToList();
+                    break;
+            }
+
+            // 8. PAGINACJA (Ręczna, bo mamy listę w pamięci)
+            var pagedResult = result
+                .Skip((criteria.PageNumber - 1) * criteria.PageSize)
+                .Take(criteria.PageSize)
+                .ToList();
+
+            return Ok(pagedResult);
         }
 
         // ==========================================================
