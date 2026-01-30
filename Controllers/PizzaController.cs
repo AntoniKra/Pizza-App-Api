@@ -341,8 +341,7 @@ namespace PizzaApp.Controllers
         [Produces("application/json")]
         public async Task<ActionResult<List<PizzaSearchResultDto>>> SearchPizzas([FromBody] PizzaSearchCriteriaDto criteria)
         {
-            // --- DIAGNOSTYKA ---
-            Console.WriteLine($"Search: City={criteria.CityId}, Sort={criteria.SortBy}");
+ 
 
             var query = _context.Pizzas
                 .Include(p => p.Ingredients)
@@ -350,7 +349,6 @@ namespace PizzaApp.Controllers
                 .Include(p => p.Menu).ThenInclude(m => m.Pizzeria).ThenInclude(pz => pz.Brand)
                 .AsQueryable();
 
-            // 1. FILTROWANIE
             query = query.Where(p => p.Menu.Pizzeria.Address!.City!.Id.ToString() == criteria.CityId);
             query = query.Where(p => p.Menu.IsActive);
 
@@ -366,46 +364,72 @@ namespace PizzaApp.Controllers
                 );
             }
 
-            // 2. FILTRY ZAAWANSOWANE (ENUMY)
             try
             {
                 if (criteria.Styles != null && criteria.Styles.Any())
                 {
-                    var styleEnums = criteria.Styles.Select(s => Enum.Parse<PizzaStyleEnum>(s.Id, true)).ToList();
+                    var styleEnums = criteria.Styles
+                        .Select(s => Enum.Parse<PizzaStyleEnum>(s.Id, true))
+                        .ToList();
                     query = query.Where(p => styleEnums.Contains(p.Style));
                 }
+                
                 if (criteria.Doughs != null && criteria.Doughs.Any())
                 {
-                    var doughEnums = criteria.Doughs.Select(d => Enum.Parse<DoughTypeEnum>(d.Id, true)).ToList();
+                    var doughEnums = criteria.Doughs
+                        .Select(d => Enum.Parse<DoughTypeEnum>(d.Id, true))
+                        .ToList();
                     query = query.Where(p => doughEnums.Contains(p.Dough));
                 }
+                
                 if (criteria.Thicknesses != null && criteria.Thicknesses.Any())
                 {
-                    var thicknessEnums = criteria.Thicknesses.Select(t => Enum.Parse<CrustThicknessEnum>(t.Id, true)).ToList();
+                    var thicknessEnums = criteria.Thicknesses
+                        .Select(t => Enum.Parse<CrustThicknessEnum>(t.Id, true))
+                        .ToList();
                     query = query.Where(p => thicknessEnums.Contains(p.Thickness));
                 }
+                
                 if (criteria.Sauces != null && criteria.Sauces.Any())
                 {
-                    var sauceEnums = criteria.Sauces.Select(s => Enum.Parse<SauceTypeEnum>(s.Id, true)).ToList();
+                    var sauceEnums = criteria.Sauces
+                        .Select(s => Enum.Parse<SauceTypeEnum>(s.Id, true))
+                        .ToList();
                     query = query.Where(p => sauceEnums.Contains(p.BaseSauce));
                 }
+                
                 if (criteria.Shapes != null && criteria.Shapes.Any())
                 {
-                    var shapeEnums = criteria.Shapes.Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true)).ToList();
+                    var shapeEnums = criteria.Shapes
+                        .Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true))
+                        .ToList();
                     query = query.Where(p => shapeEnums.Contains(p.Shape));
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Błąd filtrów: {ex.Message}");
+                Console.WriteLine($"Błąd parsowania filtrów: {ex.Message}");
+                return BadRequest($"Nieprawidłowa wartość enuma: {ex.Message}");
             }
 
             // 3. CENA
-            if (criteria.MinPrice.HasValue) query = query.Where(p => p.Price >= criteria.MinPrice.Value);
-            if (criteria.MaxPrice.HasValue) query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
+            if (criteria.MinPrice.HasValue) 
+                query = query.Where(p => p.Price >= criteria.MinPrice.Value);
+            if (criteria.MaxPrice.HasValue) 
+                query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
 
-            // 4. SORTOWANIE (CAŁOŚĆ W SQL - WYDAJNOŚĆ)
-            switch (criteria.SortBy)
+            // 4. SORTOWANIE - parsowanie SortBy z LookUpItemDto
+            SortOptionEnum sortOption = SortOptionEnum.Default;
+            if (criteria.SortBy != null && !string.IsNullOrEmpty(criteria.SortBy.Id))
+            {
+                if (!Enum.TryParse<SortOptionEnum>(criteria.SortBy.Id, true, out sortOption))
+                {
+                    Console.WriteLine($"Nieprawidłowa opcja sortowania: {criteria.SortBy.Id}");
+                    sortOption = SortOptionEnum.Default;
+                }
+            }
+
+            switch (sortOption)
             {
                 case SortOptionEnum.PriceAsc:
                     query = query.OrderBy(p => p.Price);
@@ -419,32 +443,24 @@ namespace PizzaApp.Controllers
                 case SortOptionEnum.NameDesc:
                     query = query.OrderByDescending(p => p.Name);
                     break;
-
-                // LOGIKA BIZNESOWA W SQL: Opłacalność (zł/cm2) - mniejsza wartość = lepiej
-                // Używamy double do obliczeń w SQL
                 case SortOptionEnum.ProfitabilityAsc:
                     query = query.OrderBy(p =>
                         p.Shape == PizzaShapeEnum.Round
-                            ? (double)p.Price / (Math.PI * Math.Pow((double)p.DiameterCm / 2.0, 2)) // Koło
-                            : (double)p.Price / ((double)p.WidthCm * (double)p.LengthCm)             // Prostokąt
+                            ? (double)p.Price / (Math.PI * Math.Pow((double)p.DiameterCm / 2.0, 2))
+                            : (double)p.Price / ((double)p.WidthCm * (double)p.LengthCm)
                     );
                     break;
-
-                // LOGIKA BIZNESOWA W SQL: Masa (kcal/g) - większa wartość = lepiej
                 case SortOptionEnum.KcalDensityDesc:
                     query = query.OrderByDescending(p =>
                         p.WeightGrams > 0 ? (double)p.Kcal / (double)p.WeightGrams : 0
                     );
                     break;
-
-                // LOGIKA BIZNESOWA W SQL: Redukcja (kcal/g) - mniejsza wartość = lepiej
                 case SortOptionEnum.KcalDensityAsc:
                     query = query.OrderBy(p =>
                         p.WeightGrams > 0 ? (double)p.Kcal / (double)p.WeightGrams : 0
                     );
                     break;
-
-                default: // Domyślne sortowanie
+                default:
                     query = query.OrderBy(p => p.Name);
                     break;
             }
@@ -456,7 +472,6 @@ namespace PizzaApp.Controllers
                 .ToListAsync();
 
             // 6. MAPOWANIE DANYCH
-            // Wyliczenia powtarzamy w pamięci tylko dla wyświetlenia (dla 10-20 rekordów to żaden koszt)
             var result = pagedData.Select(p =>
             {
                 double area = (p.Shape == PizzaShapeEnum.Round)

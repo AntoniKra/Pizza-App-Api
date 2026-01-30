@@ -100,19 +100,5 @@ namespace PizzaApp.Controllers
 
             return Ok(values);
         }
-        [HttpGet("sort-options")]
-        public ActionResult<IEnumerable<LookUpItemDto>> GetSortOptions()
-        {
-            var options = Enum.GetValues(typeof(SortOptionEnum))
-                .Cast<SortOptionEnum>()
-                .Select(e => new LookUpItemDto
-                {
-                    Id = ((int)e).ToString(),
-                    Name = e.GetDescription()
-                })
-                .ToList();
-
-            return Ok(options);
-        }
     }
 }
