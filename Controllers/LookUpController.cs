@@ -57,7 +57,7 @@ namespace PizzaApp.Controllers
 
             // Znajdź typ enuma w namespace PizzaApp.Enums
             var enumType = Type.GetType($"PizzaApp.Enums.{type}");
-            
+
             if (enumType == null || !enumType.IsEnum)
             {
                 return BadRequest($"Nieprawidłowy typ enuma: {type}");
@@ -86,7 +86,7 @@ namespace PizzaApp.Controllers
 
             // Znajdź typ enuma w namespace PizzaApp.Enums
             var enumType = Type.GetType($"PizzaApp.Enums.{type}");
-            
+
             if (enumType == null || !enumType.IsEnum)
             {
                 return BadRequest($"Nieprawidłowy typ enuma: {type}");
@@ -99,6 +99,20 @@ namespace PizzaApp.Controllers
                 .ToList();
 
             return Ok(values);
+        }
+        [HttpGet("sort-options")]
+        public ActionResult<IEnumerable<LookUpItemDto>> GetSortOptions()
+        {
+            var options = Enum.GetValues(typeof(SortOptionEnum))
+                .Cast<SortOptionEnum>()
+                .Select(e => new LookUpItemDto
+                {
+                    Id = ((int)e).ToString(),
+                    Name = e.GetDescription()
+                })
+                .ToList();
+
+            return Ok(options);
         }
     }
 }

@@ -37,6 +37,7 @@ namespace PizzaApp.Controllers
 
             if (dto.Style != null) Console.WriteLine($"Style ID: {dto.Style.Id}");
             else Console.WriteLine("Style is NULL!");
+
             var menuExists = await _context.Menus.AnyAsync(m => m.Id == dto.MenuId);
             if (!menuExists)
             {
@@ -48,31 +49,21 @@ namespace PizzaApp.Controllers
                 return Conflict($"Pizza '{dto.Name}' już istnieje w tym menu.");
             }
 
-            // Parsowanie
+            // Parsowanie Enumów
             if (!Enum.TryParse<PizzaStyleEnum>(dto.Style.Id, true, out var styleEnum))
-            {
                 return BadRequest($"Nieprawidłowe ID stylu: {dto.Style.Id}");
-            }
 
             if (!Enum.TryParse<DoughTypeEnum>(dto.Dough.Id, true, out var doughEnum))
-            {
                 return BadRequest($"Nieprawidłowe ID ciasta: {dto.Dough.Id}");
-            }
 
             if (!Enum.TryParse<SauceTypeEnum>(dto.BaseSauce.Id, true, out var sauceEnum))
-            {
                 return BadRequest($"Nieprawidłowe ID sosu: {dto.BaseSauce.Id}");
-            }
 
             if (!Enum.TryParse<CrustThicknessEnum>(dto.Thickness.Id, true, out var thicknessEnum))
-            {
                 return BadRequest($"Nieprawidłowe ID grubości: {dto.Thickness.Id}");
-            }
 
             if (!Enum.TryParse<PizzaShapeEnum>(dto.Shape.Id, true, out var shapeEnum))
-            {
                 return BadRequest($"Nieprawidłowe ID kształtu: {dto.Shape.Id}");
-            }
 
 
             // WALIDACJA WYMIARÓW
@@ -99,6 +90,7 @@ namespace PizzaApp.Controllers
 
                 uploadedImageUrl = await _fileService.UploadFileAsync(dto.ImageFile, "menu-items");
             }
+
             // ZAPIS DO BAZY
             var existingIngredients = await _context.Ingredients
                 .Where(i => dto.IngredientIds.Contains(i.Id))
@@ -161,7 +153,7 @@ namespace PizzaApp.Controllers
                     p.WidthCm,
                     p.LengthCm,
                     p.Shape,
-                    p.Style, // Tu pobieramy Enum z bazy
+                    p.Style,
                     IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
                 })
                 .ToListAsync();
@@ -183,7 +175,7 @@ namespace PizzaApp.Controllers
                     WeightGrams = p.WeightGrams,
                     Kcal = p.Kcal,
                     DiameterCm = p.Shape == PizzaShapeEnum.Round ? p.DiameterCm : null,
-                    Style = p.Style.ToLookUpItemDto(), // Zwracamy pełny obiekt {id, name}
+                    Style = p.Style.ToLookUpItemDto(),
 
                     PricePerSqCm = area > 0 ? Math.Round((decimal)p.Price / (decimal)area, 4) : 0m,
                     IngredientNames = p.IngredientNames
@@ -358,7 +350,7 @@ namespace PizzaApp.Controllers
                 .Include(p => p.Menu).ThenInclude(m => m.Pizzeria).ThenInclude(pz => pz.Brand)
                 .AsQueryable();
 
-            // 1. FILTRY PODSTAWOWE
+            // 1. FILTROWANIE
             query = query.Where(p => p.Menu.Pizzeria.Address!.City!.Id.ToString() == criteria.CityId);
             query = query.Where(p => p.Menu.IsActive);
 
@@ -367,9 +359,10 @@ namespace PizzaApp.Controllers
 
             if (criteria.MinDiameter.HasValue)
             {
+                var minDia = criteria.MinDiameter.Value;
                 query = query.Where(p =>
                     p.Shape == PizzaShapeEnum.Rectangle ||
-                    (p.Shape == PizzaShapeEnum.Round && p.DiameterCm >= criteria.MinDiameter.Value)
+                    (p.Shape == PizzaShapeEnum.Round && p.DiameterCm >= minDia)
                 );
             }
 
@@ -396,7 +389,6 @@ namespace PizzaApp.Controllers
                     var sauceEnums = criteria.Sauces.Select(s => Enum.Parse<SauceTypeEnum>(s.Id, true)).ToList();
                     query = query.Where(p => sauceEnums.Contains(p.BaseSauce));
                 }
-                // Shape filter handles checkboxes
                 if (criteria.Shapes != null && criteria.Shapes.Any())
                 {
                     var shapeEnums = criteria.Shapes.Select(s => Enum.Parse<PizzaShapeEnum>(s.Id, true)).ToList();
@@ -412,36 +404,66 @@ namespace PizzaApp.Controllers
             if (criteria.MinPrice.HasValue) query = query.Where(p => p.Price >= criteria.MinPrice.Value);
             if (criteria.MaxPrice.HasValue) query = query.Where(p => p.Price <= criteria.MaxPrice.Value);
 
-            // 4. SORTOWANIE W BAZIE (Tylko proste pola: Cena, Nazwa)
-            // Sortowanie wyliczane (Opłacalność, Kcal) robimy PÓŹNIEJ
+            // 4. SORTOWANIE (CAŁOŚĆ W SQL - WYDAJNOŚĆ)
             switch (criteria.SortBy)
             {
-                case SortOptionEnum.PriceAsc: query = query.OrderBy(p => p.Price); break;
-                case SortOptionEnum.PriceDesc: query = query.OrderByDescending(p => p.Price); break;
-                case SortOptionEnum.NameAsc: query = query.OrderBy(p => p.Name); break;
-                case SortOptionEnum.NameDesc: query = query.OrderByDescending(p => p.Name); break;
-                // Default: po nazwie, jeśli nie wybrano sortowania specjalnego
-                default:
-                    if ((int)criteria.SortBy < 6) query = query.OrderBy(p => p.Name);
+                case SortOptionEnum.PriceAsc:
+                    query = query.OrderBy(p => p.Price);
+                    break;
+                case SortOptionEnum.PriceDesc:
+                    query = query.OrderByDescending(p => p.Price);
+                    break;
+                case SortOptionEnum.NameAsc:
+                    query = query.OrderBy(p => p.Name);
+                    break;
+                case SortOptionEnum.NameDesc:
+                    query = query.OrderByDescending(p => p.Name);
+                    break;
+
+                // LOGIKA BIZNESOWA W SQL: Opłacalność (zł/cm2) - mniejsza wartość = lepiej
+                // Używamy double do obliczeń w SQL
+                case SortOptionEnum.ProfitabilityAsc:
+                    query = query.OrderBy(p =>
+                        p.Shape == PizzaShapeEnum.Round
+                            ? (double)p.Price / (Math.PI * Math.Pow((double)p.DiameterCm / 2.0, 2)) // Koło
+                            : (double)p.Price / ((double)p.WidthCm * (double)p.LengthCm)             // Prostokąt
+                    );
+                    break;
+
+                // LOGIKA BIZNESOWA W SQL: Masa (kcal/g) - większa wartość = lepiej
+                case SortOptionEnum.KcalDensityDesc:
+                    query = query.OrderByDescending(p =>
+                        p.WeightGrams > 0 ? (double)p.Kcal / (double)p.WeightGrams : 0
+                    );
+                    break;
+
+                // LOGIKA BIZNESOWA W SQL: Redukcja (kcal/g) - mniejsza wartość = lepiej
+                case SortOptionEnum.KcalDensityAsc:
+                    query = query.OrderBy(p =>
+                        p.WeightGrams > 0 ? (double)p.Kcal / (double)p.WeightGrams : 0
+                    );
+                    break;
+
+                default: // Domyślne sortowanie
+                    query = query.OrderBy(p => p.Name);
                     break;
             }
 
-            // 5. POBRANIE DANYCH (Materializacja do pamięci)
-            // UWAGA: Nie robimy tu jeszcze Skip/Take, jeśli sortujemy po polach wyliczanych!
-            var pizzaDataList = await query.ToListAsync();
+            // 5. PAGINACJA W BAZIE
+            var pagedData = await query
+                .Skip((criteria.PageNumber - 1) * criteria.PageSize)
+                .Take(criteria.PageSize)
+                .ToListAsync();
 
-            // 6. MAPOWANIE I WYLICZENIA
-            var result = pizzaDataList.Select(p =>
+            // 6. MAPOWANIE DANYCH
+            // Wyliczenia powtarzamy w pamięci tylko dla wyświetlenia (dla 10-20 rekordów to żaden koszt)
+            var result = pagedData.Select(p =>
             {
-                // Pole powierzchni
                 double area = (p.Shape == PizzaShapeEnum.Round)
                     ? Math.PI * Math.Pow(p.DiameterCm / 2.0, 2)
                     : p.WidthCm * p.LengthCm;
 
-                // Opłacalność (zł / cm2)
                 decimal pricePerSqCm = area > 0 ? (decimal)p.Price / (decimal)area : 0m;
-
-                // Gęstość (kcal / g) - Zabezpieczenie przed dzieleniem przez zero
                 double kcalPerGram = p.WeightGrams > 0 ? (double)p.Kcal / p.WeightGrams : 0;
 
                 return new PizzaSearchResultDto
@@ -456,37 +478,13 @@ namespace PizzaApp.Controllers
                     Kcal = p.Kcal,
                     DiameterCm = p.Shape == PizzaShapeEnum.Round ? p.DiameterCm : null,
                     Style = p.Style.ToLookUpItemDto(),
-                    IngredientNames = p.Ingredients.Select(i => i.Name).ToList(),
-
-                    // Pola wyliczane
                     PricePerSqCm = Math.Round(pricePerSqCm, 4),
-                    KcalPerGram = Math.Round(kcalPerGram, 2) // Zaokrąglamy do 2 miejsc
+                    KcalPerGram = Math.Round(kcalPerGram, 2),
+                    IngredientNames = p.Ingredients.Select(i => i.Name).ToList()
                 };
             }).ToList();
 
-            // 7. SORTOWANIE W PAMIĘCI (Dla pól wyliczanych)
-            switch (criteria.SortBy)
-            {
-                case SortOptionEnum.ProfitabilityAsc: // Najtańsza za cm2
-                    result = result.OrderBy(p => p.PricePerSqCm).ToList();
-                    break;
-
-                case SortOptionEnum.KcalDensityDesc: // MASA (Dużo kcal w małej wadze)
-                    result = result.OrderByDescending(p => p.KcalPerGram).ToList();
-                    break;
-
-                case SortOptionEnum.KcalDensityAsc: // REDUKCJA (Mało kcal w dużej wadze - objętościówka)
-                    result = result.OrderBy(p => p.KcalPerGram).ToList();
-                    break;
-            }
-
-            // 8. PAGINACJA (Ręczna, bo mamy listę w pamięci)
-            var pagedResult = result
-                .Skip((criteria.PageNumber - 1) * criteria.PageSize)
-                .Take(criteria.PageSize)
-                .ToList();
-
-            return Ok(pagedResult);
+            return Ok(result);
         }
 
         // ==========================================================
