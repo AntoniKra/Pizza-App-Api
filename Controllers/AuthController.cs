@@ -4,9 +4,11 @@ using Microsoft.IdentityModel.Tokens;
 using PizzaApp.Data;
 using PizzaApp.DTOs;
 using PizzaApp.Entities;
+using PizzaApp.Services;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Google.Apis.Auth;
 
 namespace PizzaApp.Controllers
 {
@@ -16,11 +18,13 @@ namespace PizzaApp.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IConfiguration _configuration;
+        private readonly IGoogleAuthService _googleAuthService;
 
-        public AuthController(AppDbContext context, IConfiguration configuration)
+        public AuthController(AppDbContext context, IConfiguration configuration, IGoogleAuthService googleAuthService)
         {
             _context = context;
             _configuration = configuration;
+            _googleAuthService = googleAuthService;
         }
 
         // POST: api/auth/register
@@ -75,20 +79,56 @@ namespace PizzaApp.Controllers
         {
             var user = await _context.Accounts.FirstOrDefaultAsync(u => u.Email == dto.Email);
 
-            if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+            if (user is null || string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             {
                 return Unauthorized("Błędny email lub hasło.");
             }
 
             var token = GenerateJwtToken(user);
-            bool isOwner = user is Owner;
+            return Ok(new LoginResponseDto { Token = token, Email = user.Email, IsOwner = user is Owner });
+        }
 
-            return Ok(new LoginResponseDto 
-            { 
-                Token = token,
-                Email = user.Email,
-                IsOwner = isOwner
-            });
+        // POST: api/auth/GoogleLogin
+        [HttpPost("GoogleLogin")]
+        [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginDto dto)
+        {
+            try
+            {
+                var payload = await _googleAuthService.ValidateAsync(dto.IdToken);
+
+                if (payload == null || string.IsNullOrEmpty(payload.Email))
+                    return BadRequest("Nieważny token Google lub brak adresu email.");
+
+                var user = await _context.Accounts.FirstOrDefaultAsync(u => u.Email == payload.Email);
+
+                if (user == null)
+                {
+                    user = new Customer
+                    {
+                        Email = payload.Email,
+                        FirstName = payload.GivenName ?? "Użytkownik",
+                        LastName = payload.FamilyName ?? "",
+                        PasswordHash = ""
+                    };
+
+                    _context.Accounts.Add(user);
+                    await _context.SaveChangesAsync();
+                }
+
+                var token = GenerateJwtToken(user);
+                return Ok(new LoginResponseDto { Token = token, Email = user.Email, IsOwner = user is Owner });
+            }
+            catch (InvalidJwtException)
+            {
+                return BadRequest("Nieważny lub przeterminowany token Google.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Błąd Google Auth: {ex.Message}");
+                return StatusCode(500, "Wystąpił błąd podczas autoryzacji Google.");
+            }
         }
 
 
@@ -102,10 +142,10 @@ namespace PizzaApp.Controllers
 
             var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()), 
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),      
+                new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+                new Claim(JwtRegisteredClaimNames.Email, user.Email),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim("role", role) 
+                new Claim("role", role)
             };
 
             var creds = new SigningCredentials(

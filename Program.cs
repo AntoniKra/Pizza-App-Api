@@ -47,6 +47,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IUserContextService, UserContextService>();
 builder.Services.AddScoped<IFileService, GoogleFileService>();
+builder.Services.AddScoped<IGoogleAuthService, GoogleAuthService>();
 
 var app = builder.Build();
 
