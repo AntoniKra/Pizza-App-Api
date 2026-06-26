@@ -77,6 +77,7 @@ namespace PizzaApp.Controllers
         // POST: api/Brand/
         [HttpPost]
         [Authorize]
+        [Consumes("multipart/form-data")]
         public async Task<ActionResult> CreateBrand([FromForm] CreateBrandDto dto)
         {
             var userId = _userContextService.GetUserId();
