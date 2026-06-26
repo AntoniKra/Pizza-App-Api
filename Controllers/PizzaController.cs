@@ -27,6 +27,7 @@ namespace PizzaApp.Controllers
         }
 
         [HttpPost]
+        [Consumes("multipart/form-data")]
         public async Task<ActionResult> CreatePizza([FromForm] CreatePizzaDto dto)
         {
             Console.WriteLine($"Name: {dto.Name}");
@@ -228,6 +229,7 @@ namespace PizzaApp.Controllers
         }
 
         [HttpPut("{id}")]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UpdatePizza(Guid id, [FromForm] UpdatePizzaDto dto)
         {
             var pizza = await _context.Pizzas
