@@ -25,4 +25,3 @@ Thumbs.db
 gcp-keys.json
 *.json
 !appsettings.json
-!appsettings.Development.json
